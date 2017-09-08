@@ -1,3 +1,13 @@
+# QGIS project files
+*.qgs*
+
+# Data dirs
+data/*
+qgis/*
+
+# param_file
+source/param.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

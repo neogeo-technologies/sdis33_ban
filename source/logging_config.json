@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "simple": {
+      "format": "%(levelname)s - %(message)s"
+    },
+    "complex": {
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    }
+  },
+  "handlers": {
+    "stderr_full": {
+      "class": "logging.StreamHandler",
+      "level": "INFO",
+      "formatter": "simple",
+      "stream": "ext://sys.stdout"
+    },
+    "stderr_light": {
+      "class": "logging.StreamHandler",
+      "level": "ERROR",
+      "formatter": "simple",
+      "stream": "ext://sys.stderr"
+    },
+    "full_log_file_handler": {
+      "class": "logging.FileHandler",
+      "level": "DEBUG",
+      "formatter": "complex",
+      "mode": "w",
+      "filename": "full.log",
+      "encoding": "utf8"
+    },
+    "light_log_file_handler": {
+      "class": "logging.FileHandler",
+      "level": "WARNING",
+      "formatter": "simple",
+      "mode": "w",
+      "filename": "light.log",
+      "encoding": "utf8"
+    }
+  },
+  "loggers": {
+    "sdis_fantoir_debug": {
+      "level": "DEBUG",
+      "handlers": [
+        "stderr_full",
+        "full_log_file_handler",
+        "light_log_file_handler"
+      ],
+      "propagate": "no"
+    },
+    "sdis_fantoir": {
+      "level": "DEBUG",
+      "handlers": [
+        "stderr_light",
+        "full_log_file_handler",
+        "light_log_file_handler"
+      ],
+      "propagate": "no"
+    }
+  }
+}
