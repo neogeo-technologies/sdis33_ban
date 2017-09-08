@@ -127,20 +127,23 @@ class FantoirUpdater(object):
         # print(u"    delete : {}".format(time5-time4))
 
         # Mise à jour de la base
-        for way_name, results in result_dict.iteritems():
-            min_dist = min(results.values())
-            rivoli_codes = [k for k,v in results.iteritems() if v == min_dist]
 
-            for table_name in param.DB_ROAD_TABLES:
-                sql = u"""
-                    UPDATE {0}.{1}
-                    SET {2} = '{3}', {4} = {5}
-                    WHERE {6} = '{7}' AND {8} = '{9}';
-                """.format(param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_RIVOLI, ', '.join(rivoli_codes),
-                           param.DB_SDIS_ROAD_RIVOLI_DIST, min_dist,
-                           param.DB_SDIS_ROAD_INSEE, insee, param.DB_SDIS_ROAD_NAME, way_name.replace("'", "''"))
-                with self.db_connection.cursor() as cur:
-                    cur.execute(sql)
+        for name_field in param.DB_SDIS_ROAD_NAMES:
+
+            for way_name, results in result_dict.iteritems():
+                min_dist = min(results.values())
+                rivoli_codes = [k for k,v in results.iteritems() if v == min_dist]
+
+                for table_name in param.DB_ROAD_TABLES:
+                    sql = u"""
+                        UPDATE {0}.{1}
+                        SET {2} = '{3}', {4} = {5}
+                        WHERE {6} = '{7}' AND {8} = '{9}';
+                    """.format(param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_RIVOLI, ', '.join(rivoli_codes),
+                               param.DB_SDIS_ROAD_RIVOLI_DIST, min_dist,
+                               param.DB_SDIS_ROAD_INSEE, insee, name_field, way_name.replace("'", "''"))
+                    with self.db_connection.cursor() as cur:
+                        cur.execute(sql)
 
         self.db_connection.commit()
         time6 = time.time()
@@ -168,37 +171,39 @@ class FantoirUpdater(object):
         #   - clef : nom de la voie dans la base du sdis
         #   - valeur : liste de couples du type (identifiant rivoli, distance de levenshtein)
 
-        sql = u"""
-            SELECT distinct({0})
-                FROM (
-        """.format(param.DB_SDIS_ROAD_NAME)
+        for name_field in param.DB_SDIS_ROAD_NAMES:
 
-        # Boucle sur les tables
-        individual_sql_selects = []
-        for table_name in param.DB_ROAD_TABLES:
-            individual_select = """
-                SELECT {0}
-                    FROM {1}.{2}
-                    WHERE {3} = '{4}' AND {0} IS NOT NULL
-            """.format(param.DB_SDIS_ROAD_NAME, param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_INSEE, insee)
-            individual_sql_selects.append(individual_select)
+            sql = u"""
+                SELECT distinct({0})
+                    FROM (
+            """.format(name_field)
 
-        sql += u"\nUNION\n".join(individual_sql_selects)
+            # Boucle sur les tables
+            individual_sql_selects = []
+            for table_name in param.DB_ROAD_TABLES:
+                individual_select = """
+                    SELECT {0}
+                        FROM {1}.{2}
+                        WHERE {3} = '{4}' AND {0} IS NOT NULL
+                """.format(name_field, param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_INSEE, insee)
+                individual_sql_selects.append(individual_select)
 
-        sql += u""") as reseau
-            ORDER BY reseau.{0} ASC;
-        """.format(param.DB_SDIS_ROAD_NAME)
+            sql += u"\nUNION\n".join(individual_sql_selects)
 
-        with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute(sql)
-            records = cur.fetchall()
+            sql += u""") as reseau
+                ORDER BY reseau.{0} ASC;
+            """.format(name_field)
 
-            for r in records:
-                way_name = r[0]
-                if way_name:
-                    way_name = way_name.decode("utf-8")
-                    self.find_rivoli_from_fantoir_for_one_way(insee=insee, way_name=way_name,
-                                                              result_dict=result_dict)
+            with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(sql)
+                records = cur.fetchall()
+
+                for r in records:
+                    way_name = r[0]
+                    if way_name:
+                        way_name = way_name.decode("utf-8")
+                        self.find_rivoli_from_fantoir_for_one_way(insee=insee, way_name=way_name,
+                                                                  result_dict=result_dict)
 
     def find_rivoli_from_fantoir_for_one_way(self, insee, way_name, result_dict):
 
@@ -227,15 +232,11 @@ class FantoirUpdater(object):
                     dist = dist - 1
                 results[r["rivo"][-5:-1]] = dist
             elif len(records) > 1:
-                if records[0]["leven_dist"] == 0:
-                    r = records[0]
-                    results[r["rivo"][-5:-1]] = r["leven_dist"]
-                else:
-                    for r in records:
-                        dist = r["leven_dist"]
-                        if dist > 0 and r["name"].decode("utf-8") in way_name:
-                            dist = dist - 1
-                        results[r["rivo"][-5:-1]] = dist
+                for r in records:
+                    dist = r["leven_dist"]
+                    if dist > 0 and r["name"].decode("utf-8") in way_name:
+                        dist = dist - 1
+                    results[r["rivo"][-5:-1]] = dist
 
         if results:
             self.add_results_to_dict(result_dict, way_name, results)
@@ -294,102 +295,71 @@ class FantoirUpdater(object):
         max_dist = param.MAX_DIST
         leven_dist_max = max(5, int(len(ban_way_name)/5))
 
-        # Récupération des tronçons situés à proximité de la géométrie
-        # Pour assurer une certaine continuité seuls les tronçons portant un nom sont récupérés
-        # Les résultats sont groupés par nom de voie
-        # Les plus grands ensembles de voies portant le même nom sont recherchés
-        # Si des ensembles de voies de longueurs similaires sont détectés la proximité orthographique est étudiée
+        for name_field in param.DB_SDIS_ROAD_NAMES:
 
-        sql = u"""
-            SELECT reseau.{0}, count(*) as {1}, SUM(length) as {2},
-                levenshtein(upper(reseau.{0}),'{3}', 1, 1, 2) as {4}
-            FROM(
-            """.format(param.DB_SDIS_ROAD_NAME, 'count', 'length', ban_way_name.upper().replace("'", "''"), 'leven_dist')
+            # Récupération des tronçons situés à proximité de la géométrie
+            # Pour assurer une certaine continuité seuls les tronçons portant un nom sont récupérés
+            # Les résultats sont groupés par nom de voie
+            # Les plus grands ensembles de voies portant le même nom sont recherchés
+            # Si des ensembles de voies de longueurs similaires sont détectés la proximité orthographique est étudiée
 
-        individual_sql_selects = []
-        for table_name in param.DB_ROAD_TABLES[0:1]:
-            individual_select = """
-                (SELECT {0}, {1}, ST_Length({2}) as length
-                    FROM neogeo.{3}
-                    WHERE {1} IS NOT NULL
-                        AND ST_Distance(geometrie, ST_GeomFromText('{4}', 27572)) < {5})
-            """.format(param.DB_SDIS_ROAD_INSEE, param.DB_SDIS_ROAD_NAME, param.DB_SDIS_ROAD_GEOM,
-                       table_name, wkt_geom, max_dist)
-            individual_sql_selects.append(individual_select)
-
-        sql += u"\nUNION\n".join(individual_sql_selects)
-
-        sql += u""") as reseau
-            GROUP BY reseau.{0}, reseau.{1}
-            ORDER BY {2} DESC;
-        """.format(param.DB_SDIS_ROAD_INSEE, param.DB_SDIS_ROAD_NAME, 'length')
-
-        with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute(sql)
-            records = cur.fetchall()
-
-            # Parmi tous les résultats retournés on ne retient que les ensembles de voies qui ont une distance de
-            # levenshtein potable
-            # Pour des distances de levenshtein similaires on ne retient que l'ensemble des voies avec la
-            # plus grande longueur
-
-            possible_records = []
-
-            if len(records) > 0:
-                least_leven_dist = min([r['leven_dist'] for r in records])
-                if least_leven_dist < len(ban_way_name) and least_leven_dist < leven_dist_max:
-                    possible_records = [r for r in records if r['leven_dist'] == least_leven_dist]
-
-                final_records = []
-                if len(possible_records) == 1:
-                    final_records = possible_records
-
-                elif len(possible_records) > 1:
-                    final_records = []
-                    max_length = max([r['length'] for r in possible_records])
-                    final_records = [r for r in possible_records if r['length'] == max_length]
-
-                if len(final_records) > 0:
-                    for r in final_records:
-                        way_name = r[param.DB_SDIS_ROAD_NAME]
-                        leven_dist = r['leven_dist']
-                        results[id_fantoir] = leven_dist
-
-        if results:
-            self.add_results_to_dict(result_dict, way_name, results)
-
-    def get_fantoir_way_names(self, insee):
-        pass
-
-    def get_db_sdis_road_names(self, insee):
-        way_names = []
-
-        for col_name in param.DB_SDIS_ROAD_NAME_COLUMNS:
             sql = u"""
-                SELECT DISTINCT({0})
-                    FROM {1}.{2}
-                    WHERE {4} = '{3}' AND {0} IS NOT NULL
-                    ORDER BY {0} ASC
-                 """.format(col_name, param.DB_SCHEMA, param.DB_ROAD_TABLE_QUATE,
-                            insee, param.DB_SDIS_ROAD_INSEE_COL)
+                SELECT reseau.{0}, count(*) as {1}, SUM(length) as {2},
+                    levenshtein(upper(reseau.{0}),'{3}', 1, 1, 2) as {4}
+                FROM(
+                """.format(name_field, 'count', 'length', ban_way_name.upper().replace("'", "''"), 'leven_dist')
 
-            # print(sql)
+            individual_sql_selects = []
+            for table_name in param.DB_ROAD_TABLES[0:1]:
+                individual_select = """
+                    (SELECT {0}, {1}, ST_Length({2}) as length
+                        FROM neogeo.{3}
+                        WHERE {1} IS NOT NULL
+                            AND ST_Distance(geometrie, ST_GeomFromText('{4}', 27572)) < {5})
+                """.format(param.DB_SDIS_ROAD_INSEE, name_field, param.DB_SDIS_ROAD_GEOM,
+                           table_name, wkt_geom, max_dist)
+                individual_sql_selects.append(individual_select)
+
+            sql += u"\nUNION\n".join(individual_sql_selects)
+
+            sql += u""") as reseau
+                GROUP BY reseau.{0}, reseau.{1}
+                ORDER BY {2} DESC;
+            """.format(param.DB_SDIS_ROAD_INSEE, name_field, 'length')
 
             with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(sql)
-                road_name_records = cur.fetchall()
+                records = cur.fetchall()
 
-                way_names += [r[param.DB_SDIS_ROAD_NAME] for r in road_name_records]
+                # Parmi tous les résultats retournés on ne retient que les ensembles de voies qui ont une distance de
+                # levenshtein potable
+                # Pour des distances de levenshtein similaires on ne retient que l'ensemble des voies avec la
+                # plus grande longueur
 
-                # for road_name_record in road_name_records:
-                #     # print(road_name_record[ban_attr_insee])
-                #     # print(road_name_record[ban_attr_id_fantoir])
-                #     # print(road_name_record[ban_attr_road_name_afnor])
-                #     self.process_one_road(road_name_record[ban_attr_insee],
-                #                           road_name_record[ban_attr_id_fantoir],
-                #                           road_name_record[ban_attr_road_name_afnor])
+                possible_records = []
 
-        return way_names
+                if len(records) > 0:
+                    least_leven_dist = min([r['leven_dist'] for r in records])
+                    if least_leven_dist < len(ban_way_name) and least_leven_dist < leven_dist_max:
+                        possible_records = [r for r in records if r['leven_dist'] == least_leven_dist]
+
+                    final_records = []
+                    if len(possible_records) == 1:
+                        final_records = possible_records
+
+                    elif len(possible_records) > 1:
+                        final_records = []
+                        max_length = max([r['length'] for r in possible_records])
+                        final_records = [r for r in possible_records if r['length'] == max_length]
+
+                    if len(final_records) > 0:
+                        for r in final_records:
+                            way_name = r[name_field]
+                            leven_dist = r['leven_dist']
+                            results[id_fantoir] = leven_dist
+
+        if results:
+            self.add_results_to_dict(result_dict, way_name, results)
 
 
 @click.group()

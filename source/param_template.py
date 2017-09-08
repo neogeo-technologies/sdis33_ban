@@ -17,7 +17,7 @@ DB_ROAD_TABLES = (DB_ROAD_TABLE_PRIMA, DB_ROAD_TABLE_SECON, DB_ROAD_TABLE_TERTI,
                   DB_ROAD_TABLE_QUATE, DB_ROAD_TABLE_AUACC, DB_ROAD_TABLE_VONOC)
 
 DB_SDIS_ROAD_GEOM = "geometrie"
-DB_SDIS_ROAD_NAME = "nom_origine"
+DB_SDIS_ROAD_NAMES = ["nom_origine", "nom_2", "nom_3", "nom_4"]
 DB_SDIS_ROAD_INSEE = "commune_insee"
 DB_SDIS_ROAD_RIVOLI = "rivoli"
 DB_SDIS_ROAD_RIVOLI_DIST = "rivoli_dist"

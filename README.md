@@ -46,6 +46,9 @@ routier et sur les nouvelles
 tables créés (tables pour les données Fantoir, BAN et BANO)
 * DB_PWD : mot de passe de l'utilisateur défini par DB_USER
 * DB_SCHEMA : le nom du schéma qui contient les tables à manipuler
+* DB_SDIS_ROAD_NAMES : la liste des champs des tables du réseau routier qui contiennent un nom à exploiter sous la 
+forme d'une liste Pyhton. Par exemple : ["nom_origine", "nom_2", "nom_3", "nom_4"]. Plus cette liste est longue plus 
+les traitements sont longs.
 
 Un paramètre numérique est utilisé par l'algorithme mis en place pour rechercher les codes Rivoli utilisés dans la BAN 
 et la BANO :
@@ -72,8 +75,8 @@ Une partie scripts SQL livrés dans le répertoire sql utilisent un schéma "neo
 Pour la mise en place d'une copie des données routières dans le schéma neogeo (scripts à utiliser dans cet ordre) :
 1. Création des tables du réseau routier dans le schéma neogeo : neogeo.rerou*.sql
 2. Ajout de nouvelles colonnes dans ces tables : add_fields_to_neogeo.sql
-3. Copie des données routières du schema gces vers le schéma neogeo : copy_data_to_neogeo_full.sql (pour l'ensemble des communes) et 
-copy_data_to_neogeo_partial.sql (pour quelques communes)
+3. Copie des données routières du schema gces vers le schéma neogeo : copy_data_to_neogeo_full.sql (pour l'ensemble des 
+communes) et copy_data_to_neogeo_partial.sql (pour quelques communes)
 
 Pour la création des nouvelles tables contenant les données Fantoir, de la BAN et de la BANO :
 1. create_fantoir_table.sql
@@ -88,7 +91,8 @@ correspondre à l'emplacement de ces fichiers sur votre ordinateur/serveur) :
 ## Données externes
 
 ### Fantoir
-Les données Fantoir sont mises à disposition de manière régulière par Région et par Département à l'emplacement suivant :
+Les données Fantoir sont mises à disposition de manière régulière par Région et par Département à l'emplacement suivant
+ :
 https://www.collectivites-locales.gouv.fr/mise-a-disposition-gratuite-fichier-des-voies-et-des-lieux-dits-fantoir
 
 Chaque région fait l'objet d'un fichier zip contenant un fichier txt par Département.
