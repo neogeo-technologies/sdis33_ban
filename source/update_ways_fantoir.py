@@ -400,7 +400,10 @@ def cli():
 @cli.command()
 @click.argument('fantoir_file_path', type=click.Path(exists=True))
 def load_fantoir(fantoir_file_path):
-    """Chargement d'un fichier Fantoir dans la base de données"""
+    """Chargement d'un fichier Fantoir dans la base de données
+
+\b
+Exemple : python update_ways_fantoir.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.txt"""
     click.echo(u"Chargement d'un fichier fantoir dans la base de données...")
     click.echo(u"Fichier Fantoir : {}".format(fantoir_file_path))
     # fantoir_file_path = r"../data/fantoir/nouvelle_aquitaine/330.txt"
@@ -422,17 +425,17 @@ exploiter les codes Rivoli présents dans la BAN et la BANO utilisez les options
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :
-    update_ways_fantoir.py update_rivoli --help
+    python update_ways_fantoir.py update_rivoli --help
 - Mise à jour des codes rivoli d'une commune :
-    update_ways_fantoir.py update_rivoli 33316
+    python update_ways_fantoir.py update_rivoli 33316
 - Mise à jour des codes rivoli de 2 communes :
-    update_ways_fantoir.py update_rivoli 33316 33424
+    python update_ways_fantoir.py update_rivoli 33316 33424
 - Mise à jour des codes rivoli de toutes les communes :
-    update_ways_fantoir.py update_rivoli
+    python update_ways_fantoir.py update_rivoli
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BAN :
-    update_ways_fantoir.py update_rivoli --ban 33316
+    python update_ways_fantoir.py update_rivoli --ban 33316
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BANO :
-    update_ways_fantoir.py update_rivoli --bano 33316"""
+    python update_ways_fantoir.py update_rivoli --bano 33316"""
 
     click.echo(u"Mise à jour des codes Rivoli du réseau routier à partir des données Fantoir...")
 
