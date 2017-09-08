@@ -16,7 +16,9 @@ les codes Rivoli. Cette opération est réalisée à l'aide du script python sui
 
 D'autres outils viendront les compléter pour atteindre l'objectif final identifier plus haut.
 
-## Installation des scripts Python
+## Installation et configuration
+
+### Installation des scripts Python
 Prérequis :
 * Python
 * Pip (gestionnaire de modules pour Python)
@@ -29,9 +31,7 @@ Procédure d'installation :
 4. Installer les modules nécessaire au fonctionnement des scripts :
 pip install -r source/requirements.txt
 
-## Configuration
-
-### Application
+### Configuration des scripts Python
 Le paramétrage des scripts Python doit être réalisé à l'aide d'un fichier source/param.py.
 
 1. Copier le fichier source/param_template.py pour créer un fichier param.py au même emplacement que le fichier 
@@ -52,7 +52,18 @@ et la BANO :
 * MAX_DIST : distance maximum en mètres (300 est une valeur fonctionnant plutôt bien) utilisée pour recherche les 
 tronçons routiers de la base de données qui pourraient correspondre aux points adresse de la BAN et de la BANO.
 
-### Base de données
+### Module fuzzystrmatch de PostgreSQL
+Les scripts utilisent la mesure de distance de Levenshtein pour comparer des chaînes de caractères. Cette mesure est 
+fournie par la fonction Levenshtein du module fuzzystrmatch 
+(cf. https://www.postgresql.org/docs/current/static/fuzzystrmatch.html).
+
+Il convient donc d'activer ce module dans la base de données avant toute utilisation des scripts :
+
+CREATE EXTENSION fuzzystrmatch
+  SCHEMA public
+  VERSION "1.0";
+
+### Schéma de la base de données
 Afin de pouvoir réaliser des tests en toute sécurité, il est préférable de travailler sur un nouveau schéma de la base 
 de données dans lequel une copie de la base de données routière est réalisée.
 
