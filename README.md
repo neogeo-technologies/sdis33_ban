@@ -177,7 +177,7 @@ Exemples :
 
 Les deux options --ban et --bano augmentent considérablement le temps de traitement sans réelle plus-value aujourd'hui 
 car l'algorithme d'association des codes Rivoli utilisé pour la BAN et la BANO semble moins performant que celui que 
-nous utilisons. Mais le renseignement des codes Rivoli dans les bases BAN et bANO pourrait s'améliorer à l'avenir.
+nous utilisons. Mais le renseignement des codes Rivoli dans les bases BAN et BANO pourrait s'améliorer à l'avenir.
 
 Nous recommandons donc d'utiliser ces options lorsque la BAN et la BANO seront améliorées pour un utisage ponctuel sur 
 un nombre de communes limité lorsque l'utilisation du script donne des résultats médiocres sur celles-ci.
