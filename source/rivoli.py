@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import utils
+
 import psycopg2
 import psycopg2.extras
 
@@ -17,13 +19,7 @@ class FantoirUpdater(object):
         self.fantoir_data = None
 
         # db connection
-        db_conn_str = ""
-        db_conn_str += "host='{}' ".format(param.DB_HOST)
-        db_conn_str += "port={} ".format(param.DB_PORT)
-        db_conn_str += "dbname='{}' ".format(param.DB_NAME)
-        db_conn_str += "user='{}' ".format(param.DB_USER)
-        db_conn_str += "password='{}' ".format(param.DB_PWD)
-        db_conn_str += ' connect_timeout=10'
+        db_conn_str = utils.build_db_connect_string()
         self.db_connection = psycopg2.connect(db_conn_str)
         self.db_connection.set_client_encoding('UTF8')
 
@@ -62,37 +58,52 @@ class FantoirUpdater(object):
         self.db_connection.commit()
         cur.close()
 
-    def get_all_city_insee(self):
-
-        insee_codes = set()
-
-        # Boucle sur les tables du réseau routier
-        for table_name in param.DB_ROAD_TABLES:
-
-            # Boucle sur les codes insee présents dans la base sdis
-            sql = u"""
-                SELECT distinct({0})
-                    FROM {1}.{2}
-                    ORDER BY {0} ASC;
-            """.format(param.DB_SDIS_ROAD_INSEE, param.DB_SCHEMA, table_name)
-            with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                cur.execute(sql)
-                records = cur.fetchall()
-
-                for r in records:
-                    insee_codes.add(r[param.DB_SDIS_ROAD_INSEE])
-
-        return list(insee_codes)
-
-    def update_rivoli_codes(self, use_ban=False, use_bano=False):
-        insee_codes = self.get_all_city_insee()
+    def update(self, use_ban=False, use_bano=False):
+        insee_codes = utils.get_all_city_insee(self.db_connection)
 
         click.echo(u"Nombre de communes à traiter : {}".format(len(insee_codes)))
         for insee in insee_codes:
             click.echo(u"Traitement de la commune : {}".format(insee))
-            self.update_rivoli_codes_for_one_city(insee, use_ban=use_ban, use_bano=use_bano)
+            self.update_for_one_city(insee, use_ban=use_ban, use_bano=use_bano)
 
-    def update_rivoli_codes_for_one_city(self, insee, use_ban=False, use_bano=False):
+    def clear_rivoli_codes(self):
+        for table_name in param.DB_ROAD_TABLES:
+            sql = """
+                UPDATE {0}.{1}
+                SET {2} = DEFAULT, {3} = DEFAULT, {4} = DEFAULT
+                WHERE ({4} = '{5}' OR {4} IS NULL);
+            """.format(param.DB_SCHEMA,
+                       table_name,
+                       param.DB_SDIS_ROAD_RIVOLI,
+                       param.DB_SDIS_ROAD_RIVOLI_DIST,
+                       param.DB_SDIS_ROAD_SRC_RIVOLI,
+                       param.DB_SDIS_ROAD_SRC_RIVOLI_NEOGEO_VALUE)
+            with self.db_connection.cursor() as cur:
+                cur.execute(sql)
+
+        self.db_connection.commit()
+
+    def clear_rivoli_codes_for_one_city(self, insee):
+        # Suppression des informations sur les codes rivoli pour la commune en question
+        for table_name in param.DB_ROAD_TABLES:
+            sql = """
+                UPDATE {0}.{1}
+                SET {2} = DEFAULT, {3} = DEFAULT, {4} = DEFAULT
+                WHERE ({4} = '{5}' OR {4} IS NULL) AND {6} = '{7}';
+            """.format(param.DB_SCHEMA,
+                       table_name,
+                       param.DB_SDIS_ROAD_RIVOLI,
+                       param.DB_SDIS_ROAD_RIVOLI_DIST,
+                       param.DB_SDIS_ROAD_SRC_RIVOLI,
+                       param.DB_SDIS_ROAD_SRC_RIVOLI_NEOGEO_VALUE,
+                       param.DB_SDIS_ROAD_INSEE,
+                       insee)
+            with self.db_connection.cursor() as cur:
+                cur.execute(sql)
+
+        self.db_connection.commit()
+
+    def update_for_one_city(self, insee, use_ban=False, use_bano=False):
         result_dict = {}
 
         time1 = time.time()
@@ -115,14 +126,8 @@ class FantoirUpdater(object):
         # print(result_dict)
 
         # Suppression des informations sur les codes rivoli pour la commune en question
-        for table_name in param.DB_ROAD_TABLES:
-            sql = """
-                UPDATE {0}.{1}
-                SET {2} = NULL, {3} = NULL
-                WHERE {2} IS NOT NULL;
-            """.format(param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_RIVOLI, param.DB_SDIS_ROAD_RIVOLI_DIST)
-            with self.db_connection.cursor() as cur:
-                cur.execute(sql)
+        # self.clear_rivoli_codes_for_one_city(insee=insee)
+
         # time5 = time.time()
         # print(u"    delete : {}".format(time5-time4))
 
@@ -137,11 +142,20 @@ class FantoirUpdater(object):
                 for table_name in param.DB_ROAD_TABLES:
                     sql = u"""
                         UPDATE {0}.{1}
-                        SET {2} = '{3}', {4} = {5}
-                        WHERE {6} = '{7}' AND {8} = '{9}';
-                    """.format(param.DB_SCHEMA, table_name, param.DB_SDIS_ROAD_RIVOLI, ', '.join(rivoli_codes),
-                               param.DB_SDIS_ROAD_RIVOLI_DIST, min_dist,
-                               param.DB_SDIS_ROAD_INSEE, insee, name_field, way_name.replace("'", "''"))
+                        SET {2} = '{3}', {4} = {5}, {6} = '{7}'
+                        WHERE {8} = '{9}' AND {10} = '{11}' AND ({6} = '{7}' OR {6} IS NULL);
+                    """.format(param.DB_SCHEMA,
+                               table_name,
+                               param.DB_SDIS_ROAD_RIVOLI,
+                               ', '.join(rivoli_codes),
+                               param.DB_SDIS_ROAD_RIVOLI_DIST,
+                               min_dist,
+                               param.DB_SDIS_ROAD_SRC_RIVOLI,
+                               param.DB_SDIS_ROAD_SRC_NUM_NEOGEO_VALUE,
+                               param.DB_SDIS_ROAD_INSEE,
+                               insee,
+                               name_field,
+                               way_name.replace("'", "''"))
                     with self.db_connection.cursor() as cur:
                         cur.execute(sql)
 
@@ -163,7 +177,7 @@ class FantoirUpdater(object):
             result_dict[way_name] = results
 
     def find_rivoli_from_fantoir(self):
-        for insee in self.get_all_city_insee():
+        for insee in utils.get_all_city_insee(self.db_connection):
             self.find_rivoli_from_fantoir_for_one_city(insee)
 
     def find_rivoli_from_fantoir_for_one_city(self, insee, result_dict):
@@ -208,42 +222,61 @@ class FantoirUpdater(object):
     def find_rivoli_from_fantoir_for_one_way(self, insee, way_name, result_dict):
 
         results = {}
+        DB_FANTOIR_INSEE = "insee"
+        DB_FANTOIR_RIVOLI = "rivo"
+        DB_FANTOIR_WAY = "way"
+        DB_FANTOIR_NATURE = "natu"
+        DB_FANTOIR_TYPE = "type"
+        DB_FANTOIR_NAME = "name"
+        DB_FANTOIR_COMP_NAME = "comp_name"
 
         escaped_way_name = way_name.replace("'", "''")
         leven_dist_max = max(5, int(len(way_name)/5))
         # Recherche des noms de voies de la base Fantoir qui sont les plus proches du nom de la voie dans la base du SDIS
         sql = u"""
-            SELECT rivo, way, natu, name, comp_name, levenshtein(upper(comp_name), '{0}', 1, 1, 2) as leven_dist
-                FROM {1}.{2}
+            SELECT {0}, {1}, {2}, {3}, {4}, levenshtein(upper(comp_name), '{5}', 1, 1, 2) as leven_dist
+                FROM {6}.{7}
                 WHERE
-                levenshtein(upper(comp_name), '{0}') < {4}
-                AND insee = '{3}'
-                AND type IN('1', '4', '5')
+                levenshtein(upper({4}), '{5}') < {11}
+                AND {8} = '{9}'
+                AND {10} IN('1', '4', '5')
                 ORDER BY leven_dist ASC
                 LIMIT 20;
-        """.format(escaped_way_name, param.DB_SCHEMA, param.DB_FANTOIR_TABLE, insee, leven_dist_max)
+            """.format(
+            param.DB_FANTOIR_RIVOLI,
+            param.DB_FANTOIR_WAY,
+            param.DB_FANTOIR_NATURE,
+            param.DB_FANTOIR_NAME,
+            param.DB_FANTOIR_COMP_NAME,
+            escaped_way_name,
+            param.DB_SCHEMA,
+            param.DB_FANTOIR_TABLE,
+            param.DB_FANTOIR_INSEE,
+            insee,
+            param.DB_FANTOIR_TYPE,
+            leven_dist_max)
         with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(sql)
             records = cur.fetchall()
             if len(records) == 1:
                 r = records[0]
                 dist = r["leven_dist"]
-                if dist > 0 and r["name"].decode("utf-8") in way_name:
+                if dist > 0 and r[param.DB_FANTOIR_NAME].decode("utf-8") in way_name:
                     dist = dist - 1
-                results[r["rivo"][-5:-1]] = dist
+                results[r[param.DB_FANTOIR_RIVOLI][-5:-1]] = dist
             elif len(records) > 1:
                 for r in records:
                     dist = r["leven_dist"]
-                    if dist > 0 and r["name"].decode("utf-8") in way_name:
+                    if dist > 0 and r[param.DB_FANTOIR_NAME].decode("utf-8") in way_name:
                         dist = dist - 1
-                    results[r["rivo"][-5:-1]] = dist
+                    results[r[param.DB_FANTOIR_RIVOLI][-5:-1]] = dist
 
         if results:
             self.add_results_to_dict(result_dict, way_name, results)
 
     def find_rivoli_from_ban(self, ban_table_name):
 
-        for insee in self.get_all_city_insee():
+        for insee in utils.get_all_city_insee(self.db_connection):
             self.find_rivoli_from_ban_for_one_city(insee, ban_table_name)
 
     def find_rivoli_from_ban_for_one_city(self, insee, ban_table_name, result_dict, max_nb_roads=None):
@@ -287,12 +320,12 @@ class FantoirUpdater(object):
                                                       id_fantoir=id_fantoir, ban_way_name=ban_way_name,
                                                       wkt_geom=wkt_geom, result_dict=result_dict)
 
-    def find_rivoli_from_ban_for_one_way(self, ban_table_name, insee, id_fantoir,
-                                         ban_way_name, wkt_geom, result_dict):
+    def find_rivoli_from_ban_for_one_way(
+            self, ban_table_name, insee, id_fantoir, ban_way_name, wkt_geom, result_dict):
 
         results = {}
 
-        max_dist = param.MAX_DIST
+        max_dist = param.MAX_DIST_WITH_NAME
         leven_dist_max = max(5, int(len(ban_way_name)/5))
 
         for name_field in param.DB_SDIS_ROAD_NAMES:
@@ -310,14 +343,22 @@ class FantoirUpdater(object):
                 """.format(name_field, 'count', 'length', ban_way_name.upper().replace("'", "''"), 'leven_dist')
 
             individual_sql_selects = []
-            for table_name in param.DB_ROAD_TABLES[0:1]:
+            for table_name in param.DB_ROAD_TABLES:
                 individual_select = """
                     (SELECT {0}, {1}, ST_Length({2}) as length
-                        FROM neogeo.{3}
-                        WHERE {1} IS NOT NULL
-                            AND ST_Distance(geometrie, ST_GeomFromText('{4}', 27572)) < {5})
-                """.format(param.DB_SDIS_ROAD_INSEE, name_field, param.DB_SDIS_ROAD_GEOM,
-                           table_name, wkt_geom, max_dist)
+                        FROM {3}.{4}
+                    WHERE {0} = '{6}'
+                        AND {1} IS NULL
+                        AND ST_Distance({2}, ST_GeomFromText('{5}', 27572)) < {7})
+                    """.format(
+                        param.DB_SDIS_ROAD_INSEE,
+                        name_field,
+                        param.DB_SDIS_ROAD_GEOM,
+                        param.DB_SCHEMA,
+                        table_name,
+                        wkt_geom,
+                        insee,
+                        max_dist)
                 individual_sql_selects.append(individual_select)
 
             sql += u"\nUNION\n".join(individual_sql_selects)
@@ -325,7 +366,7 @@ class FantoirUpdater(object):
             sql += u""") as reseau
                 GROUP BY reseau.{0}, reseau.{1}
                 ORDER BY {2} DESC;
-            """.format(param.DB_SDIS_ROAD_INSEE, name_field, 'length')
+                """.format(param.DB_SDIS_ROAD_INSEE, name_field, 'length')
 
             with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(sql)
@@ -386,7 +427,7 @@ Exemple : python update_ways_fantoir.py load_fantoir ../data/fantoir/nouvelle_aq
 @click.option('--ban/--no-ban', default=False, help=u"exploite la BAN pour compléter les codes Rivoli")
 @click.option('--bano/--no-bano', default=False, help=u"exploite la BANO pour compléter les codes Rivoli")
 @click.argument('insee', nargs=-1)
-def update_rivoli(insee, ban, bano):
+def update(insee, ban, bano):
     """Mise à jour des codes Rivoli du réseau routier à partir des données Fantoir.
 
 Par défaut, cette commande compare les noms des voies avec les noms officiels présents dans la base Fantoir. Pour
@@ -395,17 +436,17 @@ exploiter les codes Rivoli présents dans la BAN et la BANO utilisez les options
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :
-    python update_ways_fantoir.py update_rivoli --help
+    python rivoli.py update --help
 - Mise à jour des codes rivoli d'une commune :
-    python update_ways_fantoir.py update_rivoli 33316
+    python rivoli.py update 33316
 - Mise à jour des codes rivoli de 2 communes :
-    python update_ways_fantoir.py update_rivoli 33316 33424
+    python rivoli.py update 33316 33424
 - Mise à jour des codes rivoli de toutes les communes :
-    python update_ways_fantoir.py update_rivoli
+    python rivoli.py update
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BAN :
-    python update_ways_fantoir.py update_rivoli --ban 33316
+    python rivoli.py update --ban 33316
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BANO :
-    python update_ways_fantoir.py update_rivoli --bano 33316"""
+    python rivoli.py update --bano 33316"""
 
     click.echo(u"Mise à jour des codes Rivoli du réseau routier à partir des données Fantoir...")
 
@@ -417,13 +458,46 @@ Exemples :
         click.echo(u"L'ensemble des codes INSEE de la base seront traités. Le temps de traitement peut durer plusieurs heures.")
         if click.confirm(u"Voulez-vous continuer ?"):
             click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
-            updater.update_rivoli_codes(use_ban=ban, use_bano=bano)
+            updater.update(use_ban=ban, use_bano=bano)
         else:
             click.echo(u"Traitement annulé.")
     else:
         for i in insee:
             click.echo(u"Traitement de la commune : {}".format(i))
-            updater.update_rivoli_codes_for_one_city(i, use_ban=ban, use_bano=bano)
+            updater.update_for_one_city(i, use_ban=ban, use_bano=bano)
+
+
+@cli.command()
+@click.argument('insee', nargs=-1)
+def clear(insee):
+    """Suppression des codes Rivoli renseignés automatiquement.
+\b
+Exemples :
+- Affichage de l'aide sur cette commande :
+    python rivoli.py clear --help
+- Suppression des codes Rivoli d'une commune :
+    python rivoli.py clear 33316
+- Suppression des codes Rivoli de 2 communes :
+    python rivoli.py clear 33316 33424
+- Suppression des codes Rivoli de toutes les communes :
+    python rivoli.py clear"""
+
+    click.echo(u"Supression des codes Rivoli du réseau routier...")
+
+    updater = FantoirUpdater()
+
+    if len(insee) == 0:
+        click.echo(u"Aucun code INSEE spécifié.")
+        click.echo(u"L'ensemble des codes INSEE de la base seront traités.")
+        if click.confirm(u"Voulez-vous continuer ?"):
+            click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
+            updater.clear_rivoli_codes()
+        else:
+            click.echo(u"Traitement annulé.")
+    else:
+        for i in insee:
+            click.echo(u"Traitement de la commune : {}".format(i))
+            updater.clear_rivoli_codes_for_one_city(i)
 
 
 if __name__ == '__main__':

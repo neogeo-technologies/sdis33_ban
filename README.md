@@ -31,6 +31,9 @@ Procédure d'installation :
 4. Installer les modules nécessaire au fonctionnement des scripts :
 pip install -r source/requirements.txt
 
+En cas d'installation sous Windows, certains modules peuvent nécessiter une procédure particulière :
+* pour shapely se référer à https://github.com/Toblerity/Shapely#built-distributions
+
 ### Configuration des scripts Python
 Le paramétrage des scripts Python doit être réalisé à l'aide d'un fichier source/param.py.
 
@@ -142,20 +145,20 @@ Remarques :
 - ce script n'a aucun impact sur les autres tables
 
 ### Mise à jour de la table Fantoir dans la base
-* Script : update_ways_fantoir.py
+* Script : rivoli.py
 * Commande : load_fantoir
 * Paramètre : chemin du fichier Fantoir à charger
 * Options : aucune
 
-Exemple : python update_ways_fantoir.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.txt
+Exemple : python rivoli.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.txt
 
 Remarques :
 * Ce script vide complètement la table fantoir avant de la remplir.
 * Ce script n'a aucun impact sur les autres tables.
 
 ### Mise à jour des codes Rivoli du réseau routier en base
-* Script : update_ways_fantoir.py
-* Commande : update_rivoli
+* Script : rivoli.py
+* Commande : update
 * Paramètre : codes INSEE des communes à traiter (codes séparés par des virgules)
 * Options :
   * --ban : recherche également les codes rivoli utilisés dans la BAN
@@ -163,17 +166,17 @@ Remarques :
 
 Exemples :
 - Affichage de l'aide sur cette commande :
-    python update_ways_fantoir.py update_rivoli --help
+    python rivoli.py update --help
 - Mise à jour des codes rivoli d'une commune :
-    python update_ways_fantoir.py update_rivoli 33316
+    python rivoli.py update 33316
 - Mise à jour des codes rivoli de 2 communes :
-    python update_ways_fantoir.py update_rivoli 33316 33424
+    python rivoli.py update 33316 33424
 - Mise à jour des codes rivoli de toutes les communes :
-    python update_ways_fantoir.py update_rivoli
+    python rivoli.py update
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BAN :
-    python update_ways_fantoir.py update_rivoli --ban 33316
+    python rivoli.py update --ban 33316
 - Mise à jour des codes rivoli d'une commune en utilisant en plus la BANO :
-    python update_ways_fantoir.py update_rivoli --bano 33316
+    python rivoli.py update --bano 33316
 
 Les deux options --ban et --bano augmentent considérablement le temps de traitement sans réelle plus-value aujourd'hui 
 car l'algorithme d'association des codes Rivoli utilisé pour la BAN et la BANO semble moins performant que celui que 

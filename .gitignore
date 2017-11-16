@@ -4,6 +4,7 @@
 # Data dirs
 data/*
 qgis/*
+temp/*
 
 # param_file
 source/param.py
