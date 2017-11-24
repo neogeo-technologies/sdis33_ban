@@ -251,6 +251,10 @@ class FantoirParser(object):
         city_ways = None
 
         for line in fantoir_file.readlines():
+
+            if line[0:3] != "330":
+                continue
+
             if is_city(line):
                 city_name = line[11:41].strip()
                 city_insee = line[0:2] + line[3:6]

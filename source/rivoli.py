@@ -23,6 +23,63 @@ class FantoirUpdater(object):
         self.db_connection = psycopg2.connect(db_conn_str)
         self.db_connection.set_client_encoding('UTF8')
 
+    def diff_fantoir(self, fantoir_data1, fantoir_data2):
+
+        # Comparaison des codes insee
+        insee_codes1 = set(fantoir_data1.keys())
+        insee_codes2 = set(fantoir_data2.keys())
+
+
+        print(u"Communes présentes dans le fichier 1 et absentes du fichier 2 : {}".format(", ".join(insee_codes1 - insee_codes2)))
+        print(u"Communes présentes dans le fichier 2 et absentes du fichier 1 : {}".format(", ".join(insee_codes2 - insee_codes1)))
+
+        # Comparaison du contenu de chaque commune pour les communes en commun dans les 2 fichiers fantoir
+        print(u"Comparaison des voies de chaque commune...")
+        insee_codes = list(insee_codes1 & insee_codes2)
+        # for insee in insee_codes[:1]:
+        for insee in insee_codes:
+
+            com_ok = True
+            com_alerts = []
+            com_alerts.append(u"Commune {} :".format(insee))
+
+            # Différence de noms ?
+            name1 = fantoir_data1[insee]["city_name"]
+            name2 = fantoir_data2[insee]["city_name"]
+            if name1 != name2:
+                com_ok = False
+                com_alerts.append(u"Nom de communes différentes : {} != {}".format(name1, name2))
+
+            # Voies différentes ?
+            ways1 = fantoir_data1[insee]["city_ways"]
+            ways2 = fantoir_data2[insee]["city_ways"]
+            ways_rivo1 = set([way["rivo"] for way in ways1])
+            ways_rivo2 = set([way["rivo"] for way in ways2])
+            ways_name1 = set([way["name"] for way in ways1])
+            ways_name2 = set([way["name"] for way in ways2])
+
+            # Codes Rivoli différents
+            ways_only_in_1 = list(ways_rivo1 - ways_rivo2)
+            ways_only_in_2 = list(ways_rivo2 - ways_rivo1)
+            if ways_only_in_1:
+                com_ok = False
+                com_alerts.append(u"Codes Rivoli présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
+            if ways_only_in_2:
+                com_ok = False
+                com_alerts.append(u"Codes Rivoli présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
+
+            # Noms de voie différents
+            ways_only_in_1 = list(ways_name1 - ways_name2)
+            ways_only_in_2 = list(ways_name2 - ways_name1)
+            if ways_only_in_1:
+                com_ok = False
+                com_alerts.append(u"Noms de voie présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
+            if ways_only_in_2:
+                com_ok = False
+                com_alerts.append(u"Noms de voie présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
+            if not com_ok:
+                print("\n".join(com_alerts))
+
     def load_fantoir_table(self, fantoir_data):
 
         # fantoir data
@@ -409,16 +466,39 @@ def cli():
 
 
 @cli.command()
+@click.argument('fantoir_file1_path', type=click.Path(exists=True))
+@click.argument('fantoir_file2_path', type=click.Path(exists=True))
+def diff_fantoir(fantoir_file1_path, fantoir_file2_path):
+    """Recherche les différences entre 2 fichiers Fantoir
+
+\b
+Exemple : python rivoli.py diff_fantoir ../data/fantoir/FANTOIR0717 ../data/fantoir/FANTOIR1017"""
+    click.echo(u"Lecture du 1er fichier fantoir...")
+    click.echo(u"Fichier Fantoir : {}".format(fantoir_file1_path))
+    parser1 = fantoir.FantoirParser(fantoir_file1_path)
+
+    click.echo(u"Lecture du 2e fichier fantoir...")
+    click.echo(u"Fichier Fantoir : {}".format(fantoir_file2_path))
+    parser2 = fantoir.FantoirParser(fantoir_file2_path)
+
+    click.echo(u"Comparaison des 2 fichiers...")
+    updater = FantoirUpdater()
+    updater.diff_fantoir(parser1.get_data(), parser2.get_data())
+
+
+@cli.command()
 @click.argument('fantoir_file_path', type=click.Path(exists=True))
 def load_fantoir(fantoir_file_path):
     """Chargement d'un fichier Fantoir dans la base de données
 
 \b
-Exemple : python update_ways_fantoir.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.txt"""
+Exemple : python rivoli.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.txt"""
     click.echo(u"Chargement d'un fichier fantoir dans la base de données...")
     click.echo(u"Fichier Fantoir : {}".format(fantoir_file_path))
     # fantoir_file_path = r"../data/fantoir/nouvelle_aquitaine/330.txt"
     parser = fantoir.FantoirParser(fantoir_file_path)
+    print(parser.get_data().keys())
+    print(parser.get_data().values()[0])
     updater = FantoirUpdater()
     updater.load_fantoir_table(parser.get_data())
 
