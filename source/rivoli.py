@@ -87,7 +87,7 @@ class FantoirUpdater(object):
             name2 = fantoir_data2[insee]["city_name"]
             if name1 != name2:
                 com_ok = False
-                com_alerts.append(u"Nom de communes différentes : {} != {}".format(name1, name2))
+                com_alerts.append(u"  Nom de communes différentes : {} != {}".format(name1, name2))
 
             # Voies différentes ?
             ways1 = fantoir_data1[insee]["city_ways"]
@@ -102,20 +102,20 @@ class FantoirUpdater(object):
             ways_only_in_2 = list(ways_rivo2 - ways_rivo1)
             if ways_only_in_1:
                 com_ok = False
-                com_alerts.append(u"Codes Rivoli présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
+                com_alerts.append(u"  Codes Rivoli présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
             if ways_only_in_2:
                 com_ok = False
-                com_alerts.append(u"Codes Rivoli présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
+                com_alerts.append(u"  Codes Rivoli présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
 
             # Noms de voie différents
             ways_only_in_1 = list(ways_name1 - ways_name2)
             ways_only_in_2 = list(ways_name2 - ways_name1)
             if ways_only_in_1:
                 com_ok = False
-                com_alerts.append(u"Noms de voie présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
+                com_alerts.append(u"  Noms de voie présents uniquement dans le fichier 1 : {}".format(", ".join(ways_only_in_1)))
             if ways_only_in_2:
                 com_ok = False
-                com_alerts.append(u"Noms de voie présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
+                com_alerts.append(u"  Noms de voie présents uniquement dans le fichier 2 : {}".format(", ".join(ways_only_in_2)))
             if not com_ok:
                 print("\n".join(com_alerts))
 
