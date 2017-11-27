@@ -45,13 +45,13 @@ class FantoirUpdater(object):
         if len(ban_rivoli_codes) > 0:
             known_rivoli_codes_percentage = \
                 float(len(set(known_rivoli_codes) & set(ban_rivoli_codes)))/float(len(ban_rivoli_codes))
-        print(u"Pourcentage de codes Rivoli de la base adresses associés à des voies : {:.1%}".format(
+        print(u"  Pourcentage de codes Rivoli de la base adresses associés à des voies : {:.1%}".format(
             known_rivoli_codes_percentage))
 
         # Codes Rivoli de la BAN non associés à des voies
         if known_rivoli_codes_percentage > 0.:
             missing_rivoli_codes = list(set(ban_rivoli_codes) - set(known_rivoli_codes))
-            print(u"Listes des codes Rivoli de la base adresses non associés à des voies : {}".format(
+            print(u"  Listes des codes Rivoli de la base adresses non associés à des voies : {}".format(
                 ", ".join(missing_rivoli_codes)))
 
     def get_stats(self, ban_or_bano="ban"):
@@ -61,7 +61,6 @@ class FantoirUpdater(object):
         for insee in insee_codes:
             click.echo(u"Traitement de la commune : {}".format(insee))
             self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano)
-
 
     def diff_fantoir(self, fantoir_data1, fantoir_data2):
 
@@ -534,7 +533,7 @@ Exemple : python rivoli.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.t
 def stats(insee, ban_or_bano):
     """Calcul de statistiques sur les codes Rivoli.
 
-Par défaut, cette commande compare les noms codes Rivoli des voies avec ceux présents dans la BAN ou la BANO.
+Cette commande compare les noms codes Rivoli des voies avec ceux présents dans la BAN ou la BANO.
 Par défaut, l'opération utilise les données de la BAN.
 
 \b
@@ -552,7 +551,7 @@ Exemples :
 - Calcul de statistiques sur les codes rivoli d'une commune en utilisant en plus la BANO :
     python rivoli.py stats --bano 33316"""
 
-    click.echo(u"Calcul de statistiques sur les codes Rivoli....")
+    click.echo(u"Calcul de statistiques sur les codes Rivoli...")
 
     # search fantoir codes for one city
     updater = FantoirUpdater()

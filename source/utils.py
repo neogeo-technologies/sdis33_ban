@@ -416,3 +416,50 @@ def get_all_segments_for_way_with_name(db_connection, insee, way_name, select_on
 
     # Returns a list of road segments records
     return segments
+
+
+def get_stats_for_named_ways(db_connection, insee, table_name):
+
+    stats = {}
+    named_ways_has_numbers = {}
+
+    name_fields_list = ", ".join(param.DB_SDIS_ROAD_NAMES)
+    name_fields_filter  = "({})".format(" OR ".join(["{} IS NOT NULL".format(f) for f in param.DB_SDIS_ROAD_NAMES]))
+    number_fields_filter  = "{}, {}, {}, {}".format(
+        param.DB_SDIS_ROAD_NUM_DEB_DRO,
+        param.DB_SDIS_ROAD_NUM_FIN_DRO,
+        param.DB_SDIS_ROAD_NUM_DEB_GAU,
+        param.DB_SDIS_ROAD_NUM_FIN_GAU
+    )
+
+    sql = u"""
+        SELECT {0}, {1}
+        FROM {2}.{3}
+        WHERE {4} = '{5}'
+            AND {6};
+        """.format(name_fields_list,
+                   number_fields_filter,
+                    param.DB_SCHEMA, table_name,
+                    param.DB_SDIS_ROAD_INSEE, insee,
+                    name_fields_filter)
+
+    with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(sql)
+        records = cur.fetchall()
+
+        for record in records:
+            way_name = "/".join([name for name in record.values() if name is not None])
+            has_numbers = (
+                record[param.DB_SDIS_ROAD_NUM_DEB_DRO] or record[param.DB_SDIS_ROAD_NUM_FIN_DRO] or
+                record[param.DB_SDIS_ROAD_NUM_DEB_GAU] or record[param.DB_SDIS_ROAD_NUM_DEB_GAU])
+            if way_name not in named_ways_has_numbers:
+                named_ways_has_numbers[way_name] = has_numbers
+            elif has_numbers:
+                named_ways_has_numbers[way_name] = True
+
+    stats["nb_of_named_ways"] = len(named_ways_has_numbers)
+    stats["nb_of_named_ways_with_no_numbers"] = len([v for v in named_ways_has_numbers.values() if v is True])
+    stats["ways_with_no_numbers"] = [k for k, v in named_ways_has_numbers.iteritems() if v is True]
+
+    return stats
+
