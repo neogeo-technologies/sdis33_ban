@@ -23,6 +23,46 @@ class FantoirUpdater(object):
         self.db_connection = psycopg2.connect(db_conn_str)
         self.db_connection.set_client_encoding('UTF8')
 
+    def get_stats_for_one_city(self, insee, ban_or_bano="ban"):
+
+        # Liste des codes Rivoli portés par les voies de la commune
+        known_rivoli_codes = utils.get_known_rivoli_codes_for_city(db_connection=self.db_connection, insee=insee)
+        # print(known_rivoli_codes)
+
+        # Liste des codes Rivoli de la BAN
+        if ban_or_bano == "bano":
+            ban_table_name = param.DB_BANO_TABLE
+        else:
+            ban_table_name = param.DB_BAN_TABLE
+
+        ban_rivoli_codes = utils.get_rivoli_codes_for_city_from_ban(
+            db_connection=self.db_connection, insee=insee, ban_table_name=ban_table_name,
+            only_used_fantoir_way_types=True)
+        # print(ban_rivoli_codes)
+
+        # Pourcentage de Codes Rivoli de BAN associés à des voies
+        known_rivoli_codes_percentage = 0.
+        if len(ban_rivoli_codes) > 0:
+            known_rivoli_codes_percentage = \
+                float(len(set(known_rivoli_codes) & set(ban_rivoli_codes)))/float(len(ban_rivoli_codes))
+        print(u"Pourcentage de codes Rivoli de la base adresses associés à des voies : {:.1%}".format(
+            known_rivoli_codes_percentage))
+
+        # Codes Rivoli de la BAN non associés à des voies
+        if known_rivoli_codes_percentage > 0.:
+            missing_rivoli_codes = list(set(ban_rivoli_codes) - set(known_rivoli_codes))
+            print(u"Listes des codes Rivoli de la base adresses non associés à des voies : {}".format(
+                ", ".join(missing_rivoli_codes)))
+
+    def get_stats(self, ban_or_bano="ban"):
+        insee_codes = utils.get_all_city_insee(self.db_connection)
+
+        click.echo(u"Nombre de communes à traiter : {}".format(len(insee_codes)))
+        for insee in insee_codes:
+            click.echo(u"Traitement de la commune : {}".format(insee))
+            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano)
+
+
     def diff_fantoir(self, fantoir_data1, fantoir_data2):
 
         # Comparaison des codes insee
@@ -165,34 +205,18 @@ class FantoirUpdater(object):
 
         time1 = time.time()
         self.find_rivoli_from_fantoir_for_one_city(insee, result_dict)
-        # time2 = time.time()
-        # print(u"    find_rivoli_from_fantoir_for_one_city : {}".format(time2-time1))
-        # print(result_dict)
 
         if use_ban:
             self.find_rivoli_from_ban_for_one_city(insee, ban_table_name=param.DB_BAN_TABLE, result_dict=result_dict)
-        # time3 = time.time()
-        # print(u"    find_rivoli_from_ban_for_one_city (ban) : {}".format(time3-time2))
-        # print(result_dict)
 
         if use_bano:
             self.find_rivoli_from_ban_for_one_city(insee, ban_table_name=param.DB_BANO_TABLE, result_dict=result_dict)
-        # time4 = time.time()
-        # print(u"    find_rivoli_from_ban_for_one_city (bano) : {}".format(time4-time3))
-
-        # print(result_dict)
-
-        # Suppression des informations sur les codes rivoli pour la commune en question
-        # self.clear_rivoli_codes_for_one_city(insee=insee)
-
-        # time5 = time.time()
-        # print(u"    delete : {}".format(time5-time4))
 
         # Mise à jour de la base
-
         for name_field in param.DB_SDIS_ROAD_NAMES:
 
             for way_name, results in result_dict.iteritems():
+
                 min_dist = min(results.values())
                 rivoli_codes = [k for k,v in results.iteritems() if v == min_dist]
 
@@ -349,12 +373,13 @@ class FantoirUpdater(object):
               {3}
             FROM {4}.{5}
             WHERE {2} = '{6}'
-                AND substring({1}, 1, 1) IN ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'X', 'Y', 'Z')
+                AND substring({1}, 1, 1) IN ({7})
                 AND {1} IS NOT NULL AND {3} IS NOT NULL
             GROUP BY {1}, {2}, {3}
             ORDER BY {1}
              """.format(param.DB_BAN_GEOM, param.DB_BAN_RIVOLI, param.DB_BAN_INSEE, param.DB_BAN_NAME,
-                        param.DB_SCHEMA, ban_table_name, insee)
+                        param.DB_SCHEMA, ban_table_name, insee,
+                        ",".join(["'{}'".format(t) for t in param.FANTOIR_USED_WAY_TYPES]))
 
         if max_nb_roads is not None:
             sql += u"""LIMIT {0};
@@ -405,7 +430,7 @@ class FantoirUpdater(object):
                     (SELECT {0}, {1}, ST_Length({2}) as length
                         FROM {3}.{4}
                     WHERE {0} = '{6}'
-                        AND {1} IS NULL
+                        AND {1} IS NOT NULL
                         AND ST_Distance({2}, ST_GeomFromText('{5}', 27572)) < {7})
                     """.format(
                         param.DB_SDIS_ROAD_INSEE,
@@ -501,6 +526,48 @@ Exemple : python rivoli.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.t
     print(parser.get_data().values()[0])
     updater = FantoirUpdater()
     updater.load_fantoir_table(parser.get_data())
+
+
+@cli.command()
+@click.option('--ban-or-bano', default='ban', type=click.Choice(['ban', 'bano']))
+@click.argument('insee', nargs=-1)
+def stats(insee, ban_or_bano):
+    """Calcul de statistiques sur les codes Rivoli.
+
+Par défaut, cette commande compare les noms codes Rivoli des voies avec ceux présents dans la BAN ou la BANO.
+Par défaut, l'opération utilise les données de la BAN.
+
+\b
+Exemples :
+- Affichage de l'aide sur cette commande :
+    python rivoli.py stats --help
+- Calcul de statistiques sur les codes rivoli d'une commune :
+    python rivoli.py stats 33316
+- Calcul de statistiques sur les codes rivoli de 2 communes :
+    python rivoli.py stats 33316 33424
+- Calcul de statistiques sur les codes rivoli de toutes les communes :
+    python rivoli.py stats
+- Calcul de statistiques sur les codes rivoli d'une commune en utilisant en plus la BAN :
+    python rivoli.py stats --ban 33316
+- Calcul de statistiques sur les codes rivoli d'une commune en utilisant en plus la BANO :
+    python rivoli.py stats --bano 33316"""
+
+    click.echo(u"Calcul de statistiques sur les codes Rivoli....")
+
+    # search fantoir codes for one city
+    updater = FantoirUpdater()
+
+    if len(insee) == 0:
+        click.echo(u"Aucun code INSEE spécifié. Si vous continuez, toutes les communes du département seront traitées.")
+        if click.confirm(u"Voulez-vous continuer ?"):
+            click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
+            updater.get_stats(ban_or_bano=ban_or_bano)
+        else:
+            click.echo(u"Traitement annulé.")
+    else:
+        for i in insee:
+            click.echo(u"Traitement de la commune : {}".format(i))
+            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano)
 
 
 @cli.command()

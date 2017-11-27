@@ -53,12 +53,13 @@ def get_ban_way_dict_for_city(db_connection, insee, ban_table_name, max_nb_roads
           {2}
         FROM {3}.{4}
         WHERE {1} = '{5}'
-            AND substring({0}, 1, 1) IN ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'X', 'Y', 'Z')
+            AND substring({0}, 1, 1) IN ({6})
             AND {0} IS NOT NULL AND {2} IS NOT NULL
         GROUP BY {0}, {2}
         ORDER BY {0}
          """.format(param.DB_BAN_RIVOLI, param.DB_BAN_INSEE, param.DB_BAN_NAME,
-                    param.DB_SCHEMA, ban_table_name, insee)
+                    param.DB_SCHEMA, ban_table_name, insee,
+                    ",".join(["'{}'".format(t) for t in param.FANTOIR_USED_WAY_TYPES]))
 
     if max_nb_roads is not None:
         sql += u"""LIMIT {0};
@@ -144,21 +145,38 @@ def get_known_rivoli_codes_for_city(db_connection, insee):
     return result_list
 
 
-def get_rivoli_codes_for_city_from_ban(db_connection, insee, ban_table_name):
+def get_rivoli_codes_for_city_from_ban(db_connection, insee, ban_table_name, only_used_fantoir_way_types=False):
 
     rivoli_codes = set()
 
     # Boucle sur les codes fantoir présents dans la base sdis
-    sql = u"""
-        SELECT distinct({0})
-            FROM {1}.{2}
-            WHERE {3} = '{4}'
-            ORDER BY {0} ASC;
-    """.format(param.DB_BAN_RIVOLI,
-               param.DB_SCHEMA,
-               ban_table_name,
-               param.DB_BAN_INSEE,
-               insee)
+    sql = u"";
+
+    if only_used_fantoir_way_types:
+        sql = u"""
+            SELECT distinct({0})
+                FROM {1}.{2}
+                WHERE {3} = '{4}'
+                    AND substring({0}, 1, 1) IN ({5})
+                ORDER BY {0} ASC;
+        """.format(param.DB_BAN_RIVOLI,
+                   param.DB_SCHEMA,
+                   ban_table_name,
+                   param.DB_BAN_INSEE,
+                   insee,
+                   ",".join(["'{}'".format(t) for t in param.FANTOIR_USED_WAY_TYPES]))
+    else:
+        sql = u"""
+            SELECT distinct({0})
+                FROM {1}.{2}
+                WHERE {3} = '{4}'
+                ORDER BY {0} ASC;
+        """.format(param.DB_BAN_RIVOLI,
+                   param.DB_SCHEMA,
+                   ban_table_name,
+                   param.DB_BAN_INSEE,
+                   insee)
+
     with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         cur.execute(sql)
         records = cur.fetchall()

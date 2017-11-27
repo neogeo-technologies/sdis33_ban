@@ -661,7 +661,7 @@ def cli():
 @click.argument('insee', nargs=-1)
 def update(insee, ban_or_bano):
     """Mise à jour des numéros d'adresse des tronçons de voie de la base de données routière à partir des points adresse
-    présents dans la BAN ou la BANO.
+    présents dans la BAN ou la BANO. Par défaut, l'opération utilise les données de la BAN.
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :
@@ -673,7 +673,7 @@ Exemples :
 - Mise à jour des numéros de rue de toutes les communes :
     python adresses.py update
 - Mise à jour des des numéros de rue d'une commune en utilisant à partie de la BANO :
-    python adresses.py update --ban-or-bano bano"""
+    python adresses.py update --ban-or-bano bano 33316"""
 
     click.echo(u"Mise à jour des numéros de rue du réseau routier à partir des données BAN ou BANO...")
 

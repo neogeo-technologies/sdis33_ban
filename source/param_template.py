@@ -53,6 +53,8 @@ DB_FANTOIR_TYPE = "type"
 DB_FANTOIR_NAME = "name"
 DB_FANTOIR_COMP_NAME = "comp_name"
 
+FANTOIR_USED_WAY_TYPES = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'X', 'Y', 'Z')
+
 MAX_DIST_WITH_NAME = 300
 MAX_DIST_WITH_NO_NAME = 10
 DROITE_GAUCHE_DIST = 2
