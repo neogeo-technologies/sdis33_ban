@@ -678,14 +678,15 @@ class NumbersUpdater(object):
                         print(u"    {}".format(way))
 
                 # Insertion de logs dans la table des linéaires
-                utils.insert_records_in_log(
-                    db_connection=self.db_connection,
-                    table=param.DB_BAN_LOG_L_TABLE,
-                    insee=insee,
-                    message=u"voie nommée sans adresse",
-                    error_code=20,
-                    geometries=wkt_geometries
-                )
+                if len(ways_with_no_numbers) > 0:
+                    utils.insert_records_in_log(
+                        db_connection=self.db_connection,
+                        table=param.DB_BAN_LOG_L_TABLE,
+                        insee=insee,
+                        message=u"voie nommée sans adresse",
+                        error_code=20,
+                        geometries=wkt_geometries
+                    )
 
 
     def get_stats(self, verbose=False):

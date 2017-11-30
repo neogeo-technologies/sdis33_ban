@@ -58,11 +58,12 @@ class FantoirUpdater(object):
             known_rivoli_codes_percentage))
 
         # Codes Rivoli de la BAN non associés à des voies
-        if verbose and known_rivoli_codes_percentage > 0.:
+        if known_rivoli_codes_percentage > 0.:
             missing_rivoli_codes = list(set(ban_rivoli_codes) - set(known_rivoli_codes))
-            print(u"  Listes des codes Rivoli de la base adresses non associés à des voies :")
-            for rivoli in missing_rivoli_codes:
-                print(u"    {} - {}".format(rivoli, ban_rivoli_codes_and_names[rivoli]))
+            if verbose:
+                print(u"  Listes des codes Rivoli de la base adresses non associés à des voies :")
+                for rivoli in missing_rivoli_codes:
+                    print(u"    {} - {}".format(rivoli, ban_rivoli_codes_and_names[rivoli]))
 
             message = u"code rivoli non associé à une voie"
             utils.copy_adp_with_rivoli_to_log(

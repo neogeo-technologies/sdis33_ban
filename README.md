@@ -326,7 +326,7 @@ Exemples :
       python adresses.py update --ban-or-bano bano 33316
 
 Ce script peut être extrèmement long à exécuter sur l'ensemble du département. Il est donc recommandé de l'exécuter
-pour un sous-ensemble de communes : 6 min pour Pellegrue et 1h30 pour Bordeaux par exemple
+pour un sous-ensemble de communes : 8 min pour Pellegrue et 1h30 pour Bordeaux par exemple
 
 Ce script ne modifie que les tables du réseau routier.
 
