@@ -3,6 +3,7 @@
 
 import psycopg2
 import psycopg2.extras
+from datetime import datetime
 
 import shapely.wkt
 
@@ -149,16 +150,15 @@ def get_rivoli_codes_for_city_from_ban(db_connection, insee, ban_table_name, onl
 
     rivoli_codes = set()
 
-    # Boucle sur les codes fantoir présents dans la base sdis
-    sql = u"";
+    sql = u""
 
     if only_used_fantoir_way_types:
         sql = u"""
-            SELECT distinct({0})
+            SELECT DISTINCT({0})
                 FROM {1}.{2}
                 WHERE {3} = '{4}'
                     AND substring({0}, 1, 1) IN ({5})
-                ORDER BY {0} ASC;
+                ORDER BY {0} ASC, {1} ASC;
         """.format(param.DB_BAN_RIVOLI,
                    param.DB_SCHEMA,
                    ban_table_name,
@@ -167,7 +167,7 @@ def get_rivoli_codes_for_city_from_ban(db_connection, insee, ban_table_name, onl
                    ",".join(["'{}'".format(t) for t in param.FANTOIR_USED_WAY_TYPES]))
     else:
         sql = u"""
-            SELECT distinct({0})
+            SELECT DISTINCT ({0})
                 FROM {1}.{2}
                 WHERE {3} = '{4}'
                 ORDER BY {0} ASC;
@@ -188,6 +188,51 @@ def get_rivoli_codes_for_city_from_ban(db_connection, insee, ban_table_name, onl
     result_list = list(rivoli_codes)
     result_list.sort()
     return result_list
+
+
+def get_rivoli_codes_and_way_names_for_city_from_ban(
+        db_connection, insee, ban_table_name, only_used_fantoir_way_types=False):
+
+    results = {}
+
+    sql = u""
+
+    if only_used_fantoir_way_types:
+        sql = u"""
+            SELECT DISTINCT ON ({0}) {0}, {1}
+                FROM {2}.{3}
+                WHERE {4} = '{5}'
+                    AND substring({0}, 1, 1) IN ({6})
+                ORDER BY {0} ASC, {1} ASC;
+        """.format(param.DB_BAN_RIVOLI,
+                   param.DB_BAN_NAME,
+                   param.DB_SCHEMA,
+                   ban_table_name,
+                   param.DB_BAN_INSEE,
+                   insee,
+                   ",".join(["'{}'".format(t) for t in param.FANTOIR_USED_WAY_TYPES]))
+    else:
+        sql = u"""
+            SELECT DISTINCT ON ({0}) {0}, {1}
+                FROM {2}.{3}
+                WHERE {4} = '{5}'
+                ORDER BY {0} ASC, {1} ASC;
+        """.format(param.DB_BAN_RIVOLI,
+                   param.DB_BAN_NAME,
+                   param.DB_SCHEMA,
+                   ban_table_name,
+                   param.DB_BAN_INSEE,
+                   insee)
+
+    with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(sql)
+        records = cur.fetchall()
+
+        for r in records:
+            if r[0] is not None:
+                results[r[0]] = r[1].decode("utf-8")
+
+    return results
 
 
 def get_all_adp_for_way(db_connection, insee, ban_table_name, rivoli):
@@ -421,11 +466,13 @@ def get_all_segments_for_way_with_name(db_connection, insee, way_name, select_on
 def get_stats_for_named_ways(db_connection, insee, table_name):
 
     stats = {}
+    stats["wkt_geometries"] = []
     named_ways_has_numbers = {}
 
     name_fields_list = ", ".join(param.DB_SDIS_ROAD_NAMES)
-    name_fields_filter  = "({})".format(" OR ".join(["{} IS NOT NULL".format(f) for f in param.DB_SDIS_ROAD_NAMES]))
-    number_fields_filter  = "{}, {}, {}, {}".format(
+    name_fields_filter = "({})".format(" OR ".join(["{} IS NOT NULL".format(f) for f in param.DB_SDIS_ROAD_NAMES]))
+    number_sum_fields_list = "SUM(LENGTH({0})) as sum_{0}, SUM(LENGTH({1})) as sum_{1}," \
+                             "SUM(LENGTH({2})) as sum_{2}, SUM(LENGTH({3})) as sum_{3}".format(
         param.DB_SDIS_ROAD_NUM_DEB_DRO,
         param.DB_SDIS_ROAD_NUM_FIN_DRO,
         param.DB_SDIS_ROAD_NUM_DEB_GAU,
@@ -433,33 +480,128 @@ def get_stats_for_named_ways(db_connection, insee, table_name):
     )
 
     sql = u"""
-        SELECT {0}, {1}
-        FROM {2}.{3}
-        WHERE {4} = '{5}'
-            AND {6};
+        SELECT {0}, {1}, ST_AsText(ST_Union({2})) AS geometrie
+            FROM {3}.{4}
+            WHERE {5} = '{6}'
+                AND {7}
+            GROUP BY {0}
+            ;
         """.format(name_fields_list,
-                   number_fields_filter,
-                    param.DB_SCHEMA, table_name,
-                    param.DB_SDIS_ROAD_INSEE, insee,
-                    name_fields_filter)
+                   number_sum_fields_list,
+                   param.DB_SDIS_ROAD_GEOM,
+                   param.DB_SCHEMA, table_name,
+                   param.DB_SDIS_ROAD_INSEE, insee,
+                   name_fields_filter)
 
     with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         cur.execute(sql)
         records = cur.fetchall()
 
         for record in records:
-            way_name = "/".join([name for name in record.values() if name is not None])
-            has_numbers = (
-                record[param.DB_SDIS_ROAD_NUM_DEB_DRO] or record[param.DB_SDIS_ROAD_NUM_FIN_DRO] or
-                record[param.DB_SDIS_ROAD_NUM_DEB_GAU] or record[param.DB_SDIS_ROAD_NUM_DEB_GAU])
-            if way_name not in named_ways_has_numbers:
-                named_ways_has_numbers[way_name] = has_numbers
-            elif has_numbers:
-                named_ways_has_numbers[way_name] = True
+            way_name = u"/".join([record[field_name].decode("utf-8") for field_name in param.DB_SDIS_ROAD_NAMES
+                                 if record[field_name] is not None and record[field_name].strip])
+            has_numbers = record["sum_{}".format(param.DB_SDIS_ROAD_NUM_DEB_DRO)] > 0 or \
+                          record["sum_{}".format(param.DB_SDIS_ROAD_NUM_FIN_DRO)] > 0 or \
+                          record["sum_{}".format(param.DB_SDIS_ROAD_NUM_DEB_GAU)] > 0 or \
+                          record["sum_{}".format(param.DB_SDIS_ROAD_NUM_DEB_GAU)] > 0
+
+            named_ways_has_numbers[way_name] = has_numbers
+            if not has_numbers:
+                stats["wkt_geometries"].append(record["geometrie"])
 
     stats["nb_of_named_ways"] = len(named_ways_has_numbers)
-    stats["nb_of_named_ways_with_no_numbers"] = len([v for v in named_ways_has_numbers.values() if v is True])
-    stats["ways_with_no_numbers"] = [k for k, v in named_ways_has_numbers.iteritems() if v is True]
+    stats["ways_with_no_numbers"] = sorted([k for k, v in named_ways_has_numbers.iteritems() if v is False])
+    stats["nb_of_named_ways_with_no_numbers"] = len(stats["ways_with_no_numbers"])
 
     return stats
 
+
+def clear_records_in_log(db_connection, table, insee, error_codes):
+    sql = u"""
+        DELETE FROM {}.{}
+        WHERE {} = '{}'
+            AND {} IN ({});
+        """.format(
+            param.DB_SCHEMA,
+            table,
+            param.DB_BAN_LOG_INSEE,
+            insee,
+            param.DB_BAN_LOG_ERROR,
+            ", ".join([str(e) for e in error_codes])
+        )
+
+    with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(sql,)
+    db_connection.commit()
+
+
+def copy_adp_with_rivoli_to_log(db_connection, insee, message, error_code, ban_table_name, rivoli_codes):
+
+    wkt_geometries = []
+    rivoli_codes_list = ", ".join(["'{}'".format(r) for r in rivoli_codes])
+    sql = u"""
+        SELECT {0}, {1}, {2}, ST_AsText({3}) AS geometrie
+            FROM {4}.{5}
+            WHERE {6} = '{7}'
+                AND {8} IN ({9})
+            ;
+        """.format(param.DB_BAN_NAME,
+                   param.DB_BAN_NUM,
+                   param.DB_BAN_REP,
+                   param.DB_BAN_GEOM,
+                   param.DB_SCHEMA, ban_table_name,
+                   param.DB_BAN_INSEE, insee,
+                   param.DB_BAN_RIVOLI, rivoli_codes_list)
+
+    with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(sql)
+        records = cur.fetchall()
+
+        for r in records:
+            wkt_geometries.append(r["geometrie"])
+
+    insert_records_in_log(
+        db_connection=db_connection,
+        table=param.DB_BAN_LOG_P_TABLE,
+        insee=insee,
+        message=message,
+        error_code=error_code,
+        geometries=wkt_geometries)
+
+
+def insert_records_in_log(db_connection, table, insee, message, error_code, geometries):
+
+    cols = (
+        param.DB_BAN_LOG_DATE,
+        param.DB_BAN_LOG_INSEE,
+        param.DB_BAN_LOG_MESSAGE,
+        param.DB_BAN_LOG_ERROR,
+        param.DB_BAN_LOG_GEOM
+    )
+    cols_list = ", ".join(cols)
+    vals_list = []
+
+    for wkt_geom in geometries:
+        vals_list.append(u"({}, '{}', '{}', {}, {})".format(
+            "NOW()",
+            insee,
+            message,
+            error_code,
+            "ST_GeomFromText('{}', 27572)".format(wkt_geom)
+        ))
+
+    all_vals_string = u", ".join(vals_list)
+
+    # Insertion d'un nouvel enregistrement
+    sql = u"""
+        INSERT INTO {0}.{1} ({2})
+        VALUES {3};
+    """.format(
+        param.DB_SCHEMA,
+        table,
+        cols_list,
+        all_vals_string)
+
+    with db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(sql,)
+    db_connection.commit()

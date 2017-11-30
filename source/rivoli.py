@@ -23,7 +23,14 @@ class FantoirUpdater(object):
         self.db_connection = psycopg2.connect(db_conn_str)
         self.db_connection.set_client_encoding('UTF8')
 
-    def get_stats_for_one_city(self, insee, ban_or_bano="ban"):
+    def get_stats_for_one_city(self, insee, ban_or_bano="ban", verbose=False):
+
+        # Suppression des logs sur les adresses pour cette commune
+        utils.clear_records_in_log(
+            db_connection=self.db_connection,
+            table=param.DB_BAN_LOG_P_TABLE,
+            insee=insee,
+            error_codes=(10,))
 
         # Liste des codes Rivoli portés par les voies de la commune
         known_rivoli_codes = utils.get_known_rivoli_codes_for_city(db_connection=self.db_connection, insee=insee)
@@ -35,9 +42,11 @@ class FantoirUpdater(object):
         else:
             ban_table_name = param.DB_BAN_TABLE
 
-        ban_rivoli_codes = utils.get_rivoli_codes_for_city_from_ban(
+        ban_rivoli_codes_and_names = utils.get_rivoli_codes_and_way_names_for_city_from_ban(
             db_connection=self.db_connection, insee=insee, ban_table_name=ban_table_name,
             only_used_fantoir_way_types=True)
+        ban_rivoli_codes = ban_rivoli_codes_and_names.keys()
+        # print(ban_rivoli_codes_and_names)
         # print(ban_rivoli_codes)
 
         # Pourcentage de Codes Rivoli de BAN associés à des voies
@@ -49,25 +58,34 @@ class FantoirUpdater(object):
             known_rivoli_codes_percentage))
 
         # Codes Rivoli de la BAN non associés à des voies
-        if known_rivoli_codes_percentage > 0.:
+        if verbose and known_rivoli_codes_percentage > 0.:
             missing_rivoli_codes = list(set(ban_rivoli_codes) - set(known_rivoli_codes))
-            print(u"  Listes des codes Rivoli de la base adresses non associés à des voies : {}".format(
-                ", ".join(missing_rivoli_codes)))
+            print(u"  Listes des codes Rivoli de la base adresses non associés à des voies :")
+            for rivoli in missing_rivoli_codes:
+                print(u"    {} - {}".format(rivoli, ban_rivoli_codes_and_names[rivoli]))
 
-    def get_stats(self, ban_or_bano="ban"):
+            message = u"code rivoli non associé à une voie"
+            utils.copy_adp_with_rivoli_to_log(
+                self.db_connection,
+                insee=insee,
+                message=message,
+                error_code = 10,
+                ban_table_name=ban_table_name,
+                rivoli_codes=missing_rivoli_codes)
+
+    def get_stats(self, ban_or_bano="ban", verbose=False):
         insee_codes = utils.get_all_city_insee(self.db_connection)
 
         click.echo(u"Nombre de communes à traiter : {}".format(len(insee_codes)))
         for insee in insee_codes:
             click.echo(u"Traitement de la commune : {}".format(insee))
-            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano)
+            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano, verbose=verbose)
 
     def diff_fantoir(self, fantoir_data1, fantoir_data2):
 
         # Comparaison des codes insee
         insee_codes1 = set(fantoir_data1.keys())
         insee_codes2 = set(fantoir_data2.keys())
-
 
         print(u"Communes présentes dans le fichier 1 et absentes du fichier 2 : {}".format(", ".join(insee_codes1 - insee_codes2)))
         print(u"Communes présentes dans le fichier 2 et absentes du fichier 1 : {}".format(", ".join(insee_codes2 - insee_codes1)))
@@ -530,7 +548,8 @@ Exemple : python rivoli.py load_fantoir ../data/fantoir/nouvelle_aquitaine/330.t
 @cli.command()
 @click.option('--ban-or-bano', default='ban', type=click.Choice(['ban', 'bano']))
 @click.argument('insee', nargs=-1)
-def stats(insee, ban_or_bano):
+@click.option('-v', '--verbose', is_flag=True, default=False)
+def stats(insee, ban_or_bano, verbose):
     """Calcul de statistiques sur les codes Rivoli.
 
 Cette commande compare les noms codes Rivoli des voies avec ceux présents dans la BAN ou la BANO.
@@ -540,8 +559,11 @@ Par défaut, l'opération utilise les données de la BAN.
 Exemples :
 - Affichage de l'aide sur cette commande :
     python rivoli.py stats --help
-- Calcul de statistiques sur les codes rivoli d'une commune :
+- Calcul de statistiques sur les codes rivoli d'une commune (en mode non verbeux par défaut) :
     python rivoli.py stats 33316
+- Calcul de statistiques sur les codes rivoli d'une commune en mode verbeux :
+    python rivoli.py stats --verbose 33316
+    python rivoli.py stats -v 33316
 - Calcul de statistiques sur les codes rivoli de 2 communes :
     python rivoli.py stats 33316 33424
 - Calcul de statistiques sur les codes rivoli de toutes les communes :
@@ -560,13 +582,13 @@ Exemples :
         click.echo(u"Aucun code INSEE spécifié. Si vous continuez, toutes les communes du département seront traitées.")
         if click.confirm(u"Voulez-vous continuer ?"):
             click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
-            updater.get_stats(ban_or_bano=ban_or_bano)
+            updater.get_stats(ban_or_bano=ban_or_bano, verbose=verbose)
         else:
             click.echo(u"Traitement annulé.")
     else:
         for i in insee:
             click.echo(u"Traitement de la commune : {}".format(i))
-            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano)
+            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano, verbose=verbose)
 
 
 @cli.command()

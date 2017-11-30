@@ -95,29 +95,19 @@ manuellement dans la base)
 ### Tables utilisées pour les logs
 
 ####ban_log
-Table utilisée pour le suivi de ces anomalies
+Tables géométriques utilisées pour le suivi d'anomalies
 
     id : identifiant incrémental
-    date : date de constat
+    message_date : date de constat
     code_insee : code insee de la commune concernée
-    nom_voie_ban : nom de la voie issu de la BAN / BANO
-    nom_voie_sdis : nom de la voie issu de la BD SDIS
+    message : nom de la voie issu de la BD SDIS
     code_erreur : cf. liste présentée ci-dessous
-    geom : géométrie du tronçon concerné par le tronçon
+    geometrie : géométrie du tronçon concerné par le tronçon
 
-Liste des codes d'erreur possibles lors de l'affectation des numéros d'adresse :
+Liste des codes d'erreur utilisés dans les tables de log :
 
-    10 - voie de la BAN sans correspondance avec la BD
-    21 - numéros de la BAN non affectés faute de tronçon de la voie à proximité
-    22 - numéros de la BAN non affectés car impossibilité de déterminer de manière sûre si un des points adresse est à
-    gauche ou à droite
-    23 - numéros de la BAN non affectés car l'odre des numéros d'adresses ne semble pas logique (ordre ni strictement
-    croissant ni strictement décroissant)
-    31 - écart significatif entre les numéros précédemment renseignés et les nouveaux
-    32 - écart significatif entre les numéros renseignés manuellement et ceux présents dans la BAN/BANO
-
-
-
+    10 - code Rivoli de la base adresses non apparié à une voie
+    20 - voie nommée sans adresse
 
 
 ## Problématique d'optimisation des requêtes et d'indexation

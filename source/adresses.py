@@ -606,7 +606,7 @@ class NumbersUpdater(object):
                 rivoli=rivoli)
 
             # On traite différemment les cas suivants :
-            # - un nom est est présent
+            # - un nom est présent
             # - plus d'un nom est présent
             # - aucun nom n'est présent
             # Si plus d'un nom est présent alors on fait comme si aucun nom n'est présent
@@ -650,33 +650,51 @@ class NumbersUpdater(object):
             click.echo(u"Traitement de la commune : {}".format(insee))
             self.update_one_city(insee, ban_or_bano=ban_or_bano)
 
-    def get_stats_for_one_city(self, insee, ban_or_bano="ban"):
+    def get_stats_for_one_city(self, insee, ban_or_bano="ban", verbose=False):
+
+        # Suppression des logs sur les adresses pour cette commune
+        utils.clear_records_in_log(
+            db_connection=self.db_connection,
+            table=param.DB_BAN_LOG_L_TABLE,
+            insee=insee,
+            error_codes=(20,))
 
         # Identification des voies sans numéros par type de voies
         for table in param.DB_ROAD_TABLES:
             stats = utils.get_stats_for_named_ways(db_connection=self.db_connection, insee=insee, table_name=table)
 
             nb_all_ways = stats["nb_of_named_ways"]
-            nb_ways_with_no_address = stats["nb_of_named_ways_with_no_numbers"]
+            nb_ways_with_no_numbers = stats["nb_of_named_ways_with_no_numbers"]
             ways_with_no_numbers = stats["ways_with_no_numbers"]
+            wkt_geometries = stats["wkt_geometries"]
 
             if nb_all_ways > 0:
-                nb_ways_with_no_address_percentage = float(nb_ways_with_no_address)/float(nb_all_ways)
+                nb_ways_with_no_address_percentage = float(nb_ways_with_no_numbers)/float(nb_all_ways)
                 print(u"  Nombre de voies nommées de la table {} sans adresse : {} ({:.1%})".format(
-                    table, nb_ways_with_no_address, nb_ways_with_no_address_percentage))
-                if len(ways_with_no_numbers) > 0:
-                    print(u"  Voies nommées sans adresses de la table {} : {}".format(
-                        table,
-                        u", ".join(ways_with_no_numbers)
-                    ))
+                    table, nb_ways_with_no_numbers, nb_ways_with_no_address_percentage))
+                if verbose  and len(ways_with_no_numbers) > 0:
+                    print(u"  Voies nommées sans adresses de la table {} :".format(table))
+                    for way in ways_with_no_numbers:
+                        print(u"    {}".format(way))
 
-    def get_stats(self, ban_or_bano="ban"):
+                # Insertion de logs dans la table des linéaires
+                utils.insert_records_in_log(
+                    db_connection=self.db_connection,
+                    table=param.DB_BAN_LOG_L_TABLE,
+                    insee=insee,
+                    message=u"voie nommée sans adresse",
+                    error_code=20,
+                    geometries=wkt_geometries
+                )
+
+
+    def get_stats(self, ban_or_bano="ban", verbose=False):
         insee_codes = utils.get_all_city_insee(self.db_connection)
 
         click.echo(u"Nombre de communes à traiter : {}".format(len(insee_codes)))
         for insee in insee_codes:
             click.echo(u"Traitement de la commune : {}".format(insee))
-            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano)
+            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano, verbose=verbose)
 
 
 @click.group()
@@ -687,7 +705,8 @@ def cli():
 @cli.command()
 @click.option('--ban-or-bano', default='ban', type=click.Choice(['ban', 'bano']))
 @click.argument('insee', nargs=-1)
-def stats(insee, ban_or_bano):
+@click.option('-v', '--verbose', is_flag=True, default=False)
+def stats(insee, ban_or_bano, verbose):
     """Calcul de statistiques sur les adresses.
 
 Cette commande analyse les numéros adresse asscoiés aux voies de la base de données.
@@ -696,16 +715,15 @@ Cette commande analyse les numéros adresse asscoiés aux voies de la base de do
 Exemples :
 - Affichage de l'aide sur cette commande :
     python adresses.py stats --help
-- Calcul de statistiques sur les codes rivoli d'une commune :
+- Calcul de statistiques sur les adresses d'une commune (en mode non verbeux par défaut) :
     python adresses.py stats 33316
-- Calcul de statistiques sur les codes rivoli de 2 communes :
+- Calcul de statistiques sur les adresses d'une commune en mode verbeux :
+    python adresses.py stats --verbose 33316
+    python adresses.py stats -v 33316
+- Calcul de statistiques sur les adresses de 2 communes :
     python adresses.py stats 33316 33424
-- Calcul de statistiques sur les codes rivoli de toutes les communes :
-    python adresses.py stats
-- Calcul de statistiques sur les codes rivoli d'une commune en utilisant en plus la BAN :
-    python adresses.py stats --ban 33316
-- Calcul de statistiques sur les codes rivoli d'une commune en utilisant en plus la BANO :
-    python adresses.py stats --bano 33316"""
+- Calcul de statistiques sur les adresses de toutes les communes :
+    python adresses.py stats"""
 
     click.echo(u"Calcul de statistiques sur les numéros adresse...")
 
@@ -716,13 +734,13 @@ Exemples :
         click.echo(u"Aucun code INSEE spécifié. Si vous continuez, toutes les communes du département seront traitées.")
         if click.confirm(u"Voulez-vous continuer ?"):
             click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
-            updater.get_stats(ban_or_bano=ban_or_bano)
+            updater.get_stats(ban_or_bano=ban_or_bano, verbose=verbose)
         else:
             click.echo(u"Traitement annulé.")
     else:
         for i in insee:
             click.echo(u"Traitement de la commune : {}".format(i))
-            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano)
+            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano, verbose=verbose)
 
 
 @cli.command()
