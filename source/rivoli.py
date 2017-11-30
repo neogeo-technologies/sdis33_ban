@@ -639,6 +639,7 @@ Exemples :
 @click.argument('insee', nargs=-1)
 def clear(insee):
     """Suppression des codes Rivoli renseignés automatiquement.
+
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :

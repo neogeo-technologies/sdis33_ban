@@ -650,7 +650,7 @@ class NumbersUpdater(object):
             click.echo(u"Traitement de la commune : {}".format(insee))
             self.update_one_city(insee, ban_or_bano=ban_or_bano)
 
-    def get_stats_for_one_city(self, insee, ban_or_bano="ban", verbose=False):
+    def get_stats_for_one_city(self, insee, verbose=False):
 
         # Suppression des logs sur les adresses pour cette commune
         utils.clear_records_in_log(
@@ -688,13 +688,13 @@ class NumbersUpdater(object):
                 )
 
 
-    def get_stats(self, ban_or_bano="ban", verbose=False):
+    def get_stats(self, verbose=False):
         insee_codes = utils.get_all_city_insee(self.db_connection)
 
         click.echo(u"Nombre de communes à traiter : {}".format(len(insee_codes)))
         for insee in insee_codes:
             click.echo(u"Traitement de la commune : {}".format(insee))
-            self.get_stats_for_one_city(insee, ban_or_bano=ban_or_bano, verbose=verbose)
+            self.get_stats_for_one_city(insee, verbose=verbose)
 
 
 @click.group()
@@ -703,10 +703,9 @@ def cli():
 
 
 @cli.command()
-@click.option('--ban-or-bano', default='ban', type=click.Choice(['ban', 'bano']))
 @click.argument('insee', nargs=-1)
 @click.option('-v', '--verbose', is_flag=True, default=False)
-def stats(insee, ban_or_bano, verbose):
+def stats(insee, verbose):
     """Calcul de statistiques sur les adresses.
 
 Cette commande analyse les numéros adresse asscoiés aux voies de la base de données.
@@ -734,13 +733,13 @@ Exemples :
         click.echo(u"Aucun code INSEE spécifié. Si vous continuez, toutes les communes du département seront traitées.")
         if click.confirm(u"Voulez-vous continuer ?"):
             click.echo(u"Traitement lancé sur l'ensemble des codes INSEE de la base.")
-            updater.get_stats(ban_or_bano=ban_or_bano, verbose=verbose)
+            updater.get_stats(verbose=verbose)
         else:
             click.echo(u"Traitement annulé.")
     else:
         for i in insee:
             click.echo(u"Traitement de la commune : {}".format(i))
-            updater.get_stats_for_one_city(i, ban_or_bano=ban_or_bano, verbose=verbose)
+            updater.get_stats_for_one_city(i, verbose=verbose)
 
 
 @cli.command()
@@ -749,6 +748,7 @@ Exemples :
 def update(insee, ban_or_bano):
     """Mise à jour des numéros d'adresse des tronçons de voie de la base de données routière à partir des points adresse
     présents dans la BAN ou la BANO. Par défaut, l'opération utilise les données de la BAN.
+
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :
@@ -785,6 +785,7 @@ Exemples :
 @click.argument('insee', nargs=-1)
 def clear(insee):
     """Suppression des numéros d'adresse renseignés automatiquement.
+
 \b
 Exemples :
 - Affichage de l'aide sur cette commande :

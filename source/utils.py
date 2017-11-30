@@ -230,7 +230,10 @@ def get_rivoli_codes_and_way_names_for_city_from_ban(
 
         for r in records:
             if r[0] is not None:
-                results[r[0]] = r[1].decode("utf-8")
+                if r[1]:
+                    results[r[0]] = r[1].decode("utf-8")
+                else:
+                    results[r[0]] = u""
 
     return results
 
