@@ -321,18 +321,20 @@ class FantoirUpdater(object):
     def find_rivoli_from_fantoir_for_one_way(self, insee, way_name, result_dict):
 
         results = {}
-        CAUD_SUFFIX = " CAUD"
+        # Traitement spécifique pour voies avec "CAUD" en fin de nom pour Bordeaux
+        # CAUD_SUFFIX = " CAUD"
 
         escaped_way_name = way_name.replace("'", "''")
-        if len(escaped_way_name) > 10 and escaped_way_name.endswith(CAUD_SUFFIX):
-            escaped_way_name = escaped_way_name[:len(CAUD_SUFFIX)]
+        # Traitement spécifique pour voies avec "CAUD" en fin de nom pour Bordeaux
+        # if len(escaped_way_name) > 10 and escaped_way_name.endswith(CAUD_SUFFIX):
+        #     escaped_way_name = escaped_way_name[:len(CAUD_SUFFIX)]
         leven_dist_max = max(param.LEVEN_DIST_MAX, int(len(way_name)/3))
         # Recherche des noms de voies de la base Fantoir qui sont les plus proches du nom de la voie dans la base du SDIS
         sql = u"""
-            SELECT {0}, {1}, {2}, {3}, {4}, levenshtein(replace(upper(comp_name), ' CAUD', ' '), '{5}', 1, 1, 1) as leven_dist
+            SELECT {0}, {1}, {2}, {3}, {4}, levenshtein(upper(comp_name), '{5}', 1, 1, 1) as leven_dist
                 FROM {6}.{7}
                 WHERE
-                levenshtein(replace(upper({4}), ' CAUD', ' '), '{5}', 1, 1, 1) < {11}
+                levenshtein(upper({4}), '{5}', 1, 1, 1) < {11}
                 AND {8} = '{9}'
                 AND {10} IN('1', '4', '5')
                 ORDER BY leven_dist ASC
@@ -350,6 +352,31 @@ class FantoirUpdater(object):
             insee,
             param.DB_FANTOIR_TYPE,
             leven_dist_max)
+
+        # Traitement spécifique pour voies avec "CAUD" en fin de nom pour Bordeaux
+        # sql = u"""
+        #     SELECT {0}, {1}, {2}, {3}, {4}, levenshtein(replace(upper(comp_name), ' CAUD', ' '), '{5}', 1, 1, 1) as leven_dist
+        #         FROM {6}.{7}
+        #         WHERE
+        #         levenshtein(replace(upper({4}), ' CAUD', ' '), '{5}', 1, 1, 1) < {11}
+        #         AND {8} = '{9}'
+        #         AND {10} IN('1', '4', '5')
+        #         ORDER BY leven_dist ASC
+        #         LIMIT 20;
+        #     """.format(
+        #     param.DB_FANTOIR_RIVOLI,
+        #     param.DB_FANTOIR_WAY,
+        #     param.DB_FANTOIR_NATURE,
+        #     param.DB_FANTOIR_NAME,
+        #     param.DB_FANTOIR_COMP_NAME,
+        #     escaped_way_name,
+        #     param.DB_SCHEMA,
+        #     param.DB_FANTOIR_TABLE,
+        #     param.DB_FANTOIR_INSEE,
+        #     insee,
+        #     param.DB_FANTOIR_TYPE,
+        #     leven_dist_max)
+
 
         with self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(sql)
