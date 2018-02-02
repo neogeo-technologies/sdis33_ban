@@ -448,14 +448,10 @@ class NumbersUpdater(object):
 
                     if len(final_records) > 0:
                         for r in final_records:
-                            way_name = r[name_field]
-                            leven_dist = r['leven_dist']
-                            result_names.add(r[0])
+                            result_names.add(r[0].decode("utf-8"))
 
         for sdis_way_name in result_names:
             result = True
-            # print(rivoli)
-            # print(sdis_way_name)
             road_segments = utils.get_all_segments_for_way_with_name(
                 db_connection=self.db_connection, insee=insee, way_name=sdis_way_name, )
             # print(len(road_segments))
@@ -622,7 +618,7 @@ class NumbersUpdater(object):
                 remaining_rivoli_codes_2.append(rivoli)
             else:
                 way_name = way_names[0].decode("utf-8")
-                # print(way_name)
+                print(way_name)
 
                 # ... on cherche les bons segments de voies correspondant aux points adresse
                 segments_updated = self.update_one_way_with_name_and_no_rivoli(
