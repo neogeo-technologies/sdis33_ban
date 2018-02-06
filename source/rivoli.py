@@ -222,18 +222,23 @@ class FantoirUpdater(object):
         result_dict = {}
 
         time1 = time.time()
+        print(u"  Recherche des codes Rivoli issus de Fantoir...")
         self.find_rivoli_from_fantoir_for_one_city(insee, result_dict)
 
         if use_ban:
+            print(u"  Recherche des codes Rivoli issus de la BAN...")
             self.find_rivoli_from_ban_for_one_city(insee, ban_table_name=param.DB_BAN_TABLE, result_dict=result_dict)
 
         if use_bano:
+            print(u"  Recherche des codes Rivoli issus de la BANO...")
             self.find_rivoli_from_ban_for_one_city(insee, ban_table_name=param.DB_BANO_TABLE, result_dict=result_dict)
 
         # Mise à jour de la base
         for name_field in param.DB_SDIS_ROAD_NAMES:
+            print(u"  Traitement du champ nom '{}'".format(name_field))
 
             for way_name, results in result_dict.iteritems():
+                print(u"    Traitement de la voie : {}".format(way_name))
 
                 min_dist = min(results.values())
                 rivoli_codes = [k for k,v in results.iteritems() if v == min_dist]

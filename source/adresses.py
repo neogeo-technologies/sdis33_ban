@@ -84,8 +84,22 @@ class NumbersUpdater(object):
     def identify_side_for_adps(self, road_segment):
 
         # Géométrie du tronçon
-        segment_geometry = road_segment["shapely_geom"].geoms[0]
+        longer_geom_part_index = -1
+        length_of_longer_geom_part = -1
+        nb_parts = len(road_segment["shapely_geom"].geoms)
+        for part_index in range(nb_parts):
+            part_length = road_segment["shapely_geom"].geoms[part_index].length
+            if part_length > length_of_longer_geom_part:
+                longer_geom_part_index = part_index
+                length_of_longer_geom_part = part_length
 
+        if longer_geom_part_index < 0 and length_of_longer_geom_part <= 0.:
+            #TODO: Insérer l'évènement dans les logs
+            for adp in road_segment["adps"]:
+                adp["side"] = "m"
+                return
+
+        segment_geometry = road_segment["shapely_geom"].geoms[longer_geom_part_index]
 
         # Est-ce qu'on sait si les numéros pairs et impairs sont d'un côté particulier ?
         # Si l'on connait le côté des numéros pairs et celui des numéros impairs on regarde juste si le numéro est pair
@@ -350,8 +364,11 @@ class NumbersUpdater(object):
         road_segments = utils.get_all_segments_for_way_with_rivoli(self.db_connection, insee, rivoli)
         # print(u"Nombre de tronçons de voies : {0} - {1} - {2}".format(insee, rivoli, len(road_segments)))
 
-        self.update_road_segments_with_adps(road_segments=road_segments, addr_points=addr_points)
-
+        if len(road_segments) > 0:
+            self.update_road_segments_with_adps(road_segments=road_segments, addr_points=addr_points)
+        else:
+            # TODO: insérer cet évènement dans les logs
+            pass
 
     # Cette fonction se base sur la géométrie des points adresse et le nom de la voie pour essayer d'associer les bons
     # tronçons.
@@ -374,8 +391,8 @@ class NumbersUpdater(object):
             db_connection=self.db_connection, insee=insee, ban_table_name=ban_table_name, rivoli=rivoli)
         if len(adps) == 0:
             # TODO : à mettre dans les logs
-            print(u"Erreur : aucun point récupéré pour la commune et le code rivoli")
-            print(u"Commune : {0} - Code fantoir : {1}".format(insee, rivoli))
+            print(u"  Erreur : aucun point récupéré pour la commune et le code rivoli")
+            print(u"  Commune : {0} - Code fantoir : {1}".format(insee, rivoli))
             return
 
         # Création d'une géométrie multipoints pour l'ensemble des points adresse
@@ -475,8 +492,8 @@ class NumbersUpdater(object):
             db_connection=self.db_connection, insee=insee, ban_table_name=ban_table_name, rivoli=rivoli)
         if len(adps) == 0:
             # TODO : à mettre dans les logs
-            print(u"Erreur : aucun point récupéré pour la commune et le code rivoli")
-            print(u"Commune : {0} - Code fantoir : {1}".format(insee, rivoli))
+            print(u"  Erreur : aucun point récupéré pour la commune et le code rivoli")
+            print(u"  Commune : {0} - Code fantoir : {1}".format(insee, rivoli))
             return
 
         # Création d'une géométrie multipoints pour l'ensemble des points adresse
@@ -575,9 +592,11 @@ class NumbersUpdater(object):
         # print(ban_way_dict_for_city_with_no_fantoir)
 
         # On traite d'abord les voies avec code fantoir unique
+        print(u"  Traitements des voies dont le code Rivoli est renseigné dans la base...")
         # Pour chaque voie...
         for rivoli in known_rivoli_codes:
             # ... on cherche les bons numéros de voie
+            print(u"    Code Rivoli: {}".format(rivoli))
             self.update_one_way_with_rivoli(insee=insee, ban_table_name=ban_table_name, rivoli=rivoli)
 
         # On traite ensuite les points adresses de la commune qui n'ont pas été traités dans l'étape précédente
@@ -590,6 +609,7 @@ class NumbersUpdater(object):
         remaining_rivoli_codes_2 = list()
 
         # Pour chaque code Rivoli non déjà traité...
+        print(u"  Traitements des voies dont le code Rivoli n'est pas renseigné dans la base...")
         for rivoli in remaining_rivoli_codes:
 
             # Récupération du nom de la voie correspondant au code Rivoli
@@ -618,7 +638,7 @@ class NumbersUpdater(object):
                 remaining_rivoli_codes_2.append(rivoli)
             else:
                 way_name = way_names[0].decode("utf-8")
-                print(way_name)
+                print(u"    Code Rivoli: {} - Nom de voie : {}".format(rivoli, way_name))
 
                 # ... on cherche les bons segments de voies correspondant aux points adresse
                 segments_updated = self.update_one_way_with_name_and_no_rivoli(
@@ -634,9 +654,9 @@ class NumbersUpdater(object):
         result_dict = {}
 
         time9 = time.time()
-        # print(u"    update : {}".format(time6-time5))
+        # print(u"update : {}".format(time6-time5))
 
-        click.echo(u" temps de traitement pour {} : {} s".format(insee, time9 - time1))
+        click.echo(u"  temps de traitement pour {} : {} s".format(insee, time9 - time1))
 
     def update(self, ban_or_bano="ban"):
         insee_codes = utils.get_all_city_insee(self.db_connection)
