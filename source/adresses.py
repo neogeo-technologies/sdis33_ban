@@ -83,6 +83,10 @@ class NumbersUpdater(object):
     #     à gauche
     def identify_side_for_adps(self, road_segment):
 
+        # Si aucun point adresse n'est associé à ce tronçon on sort
+        if len(road_segment["adps"]) < 1:
+            return
+
         # Géométrie du tronçon
         longer_geom_part_index = -1
         length_of_longer_geom_part = -1
@@ -93,11 +97,13 @@ class NumbersUpdater(object):
                 longer_geom_part_index = part_index
                 length_of_longer_geom_part = part_length
 
-        if longer_geom_part_index < 0 and length_of_longer_geom_part <= 0.:
+        # Si aucun tronçon de longueur non nulle n'est trouvé on indique
+        # que les points adresse ne sont ni à droite ni à gauche et on sort
+        if longer_geom_part_index < 0 or length_of_longer_geom_part <= 0.:
             #TODO: Insérer l'évènement dans les logs
             for adp in road_segment["adps"]:
                 adp["side"] = "m"
-                return
+            return
 
         segment_geometry = road_segment["shapely_geom"].geoms[longer_geom_part_index]
 
