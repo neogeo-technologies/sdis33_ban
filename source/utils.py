@@ -590,7 +590,7 @@ def insert_records_in_log(db_connection, table, insee, message, error_code, geom
             insee,
             message,
             error_code,
-            "ST_GeomFromText('{}', 27572)".format(wkt_geom)
+            "ST_Multi(ST_GeomFromText('{}', 27572))".format(wkt_geom)
         ))
 
     all_vals_string = u", ".join(vals_list)
